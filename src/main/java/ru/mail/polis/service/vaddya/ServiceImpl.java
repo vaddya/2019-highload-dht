@@ -2,6 +2,7 @@ package ru.mail.polis.service.vaddya;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.Charset;
 import java.util.NoSuchElementException;
 
 import com.google.common.base.Charsets;
@@ -22,7 +23,9 @@ import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 
 public class ServiceImpl extends HttpServer implements Service {
-    private static final Log log = LogFactory.getLog(ServiceImpl.class);
+    private static final Log LOG = LogFactory.getLog(ServiceImpl.class);
+    private static final Charset DEFAULT_CHARSET = Charsets.UTF_8;
+    
     private final DAO dao;
     
     public ServiceImpl(
@@ -61,15 +64,16 @@ public class ServiceImpl extends HttpServer implements Service {
                 case Request.METHOD_DELETE:
                     return deleteEntity(key);
                 default:
-                    log.warn("Not supported HTTP-method: " + request.getMethod());
+                    LOG.warn("Not supported HTTP-method: " + request.getMethod());
                     return emptyResponse(Response.METHOD_NOT_ALLOWED);
             }
         } catch (IOException e) {
-            log.error("IO exception during request handling for id=" + id, e);
+            LOG.error("IO exception during request handling for id=" + id, e);
             return emptyResponse(Response.INTERNAL_ERROR);
         }
     }
     
+    @NotNull
     private Response getEntity(@NotNull final ByteBuffer key) throws IOException {
         try {
             final var value = dao.get(key);
@@ -114,13 +118,20 @@ public class ServiceImpl extends HttpServer implements Service {
     
     @NotNull
     private static ByteBuffer wrapString(@NotNull final String str) {
-        return ByteBuffer.wrap(str.getBytes(Charsets.UTF_8));
+        return wrapString(str, DEFAULT_CHARSET);
+    }
+    
+    @NotNull
+    private static ByteBuffer wrapString(
+            @NotNull final String str,
+            @NotNull final Charset charset) {
+        return ByteBuffer.wrap(str.getBytes(charset));
     }
     
     @NotNull
     private static byte[] unwrapBytes(@NotNull final ByteBuffer buffer) {
         final var duplicate = buffer.duplicate();
-        byte[] bytes = new byte[duplicate.remaining()];
+        final var bytes = new byte[duplicate.remaining()];
         duplicate.get(bytes);
         return bytes;
     }
