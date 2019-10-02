@@ -88,6 +88,22 @@ public class DAOImpl implements DAO {
         return Iterators.filter(collapsed, e -> !e.hasTombstone());
     }
 
+    @NotNull
+    @Override
+    public ByteBuffer get(@NotNull final ByteBuffer key) throws NoSuchEntityException {
+        final var iter = iterator(key);
+        if (!iter.hasNext()) {
+            throw new NoSuchEntityException("Not found");
+        }
+    
+        final var next = iter.next();
+        if (next.getKey().equals(key)) {
+            return next.getValue();
+        } else {
+            throw new NoSuchEntityException("Not found");
+        }
+    }
+
     @Override
     public void upsert(
             @NotNull final ByteBuffer key,
@@ -124,7 +140,7 @@ public class DAOImpl implements DAO {
         Optional.ofNullable(root.listFiles(f -> !f.equals(file)))
                 .map(Arrays::asList)
                 .orElse(emptyList())
-                .forEach(this::deleteCompactedFile);
+                .forEach(DAOImpl::deleteCompactedFile);
 
         final var table = parseTable(path);
         ssTables.clear();
@@ -159,7 +175,7 @@ public class DAOImpl implements DAO {
         return Path.of(root.getAbsolutePath(), name);
     }
 
-    private void deleteCompactedFile(@NotNull final File file) {
+    private static void deleteCompactedFile(@NotNull final File file) {
         try {
             Files.delete(file.toPath());
             LOG.trace("Table is removed during compaction: {}", file);

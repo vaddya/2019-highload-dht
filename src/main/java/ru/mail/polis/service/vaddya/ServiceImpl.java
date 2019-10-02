@@ -6,10 +6,10 @@ import java.nio.charset.Charset;
 import java.util.NoSuchElementException;
 
 import com.google.common.base.Charsets;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.service.Service;
 
@@ -23,7 +23,7 @@ import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 
 public class ServiceImpl extends HttpServer implements Service {
-    private static final Log LOG = LogFactory.getLog(ServiceImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ServiceImpl.class);
     private static final Charset DEFAULT_CHARSET = Charsets.UTF_8;
     
     private final DAO dao;
