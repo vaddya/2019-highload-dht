@@ -5,6 +5,7 @@
 !.gitignore
 !*.java
 !README.md
+!PROFILING.md
 !LICENSE
 !gradle/wrapper/*
 !gradlew.bat
