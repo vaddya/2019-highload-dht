@@ -8,7 +8,6 @@ import java.util.Iterator;
 
 final class SSTable implements Table {
     static final int MAGIC = 0xCAFEFEED;
-    static final String INVALID_FORMAT = "Invalid SSTable format";
 
     private final int entriesCount;
     private final IntBuffer offsets;

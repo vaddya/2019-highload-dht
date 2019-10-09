@@ -109,6 +109,10 @@ final class MemTablePool implements Table, Closeable {
             lock.writeLock().unlock();
         }
     }
+    
+    int getAndIncrementGeneration() {
+        return currentGeneration.getAndIncrement();
+    }
 
     private void enqueueToFlush() {
         lock.writeLock().lock();

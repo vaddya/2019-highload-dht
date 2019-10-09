@@ -134,7 +134,7 @@ public class DAOImpl implements DAO {
                 .map(table -> table.iterator(ByteBufferUtils.emptyBuffer()))
                 .collect(toList());
         final var it = mergeIterators(iterators);
-        final var path = flushEntries(0, it);
+        final var path = flushEntries(memTablePool.getAndIncrementGeneration(), it);
         final var file = path.toFile();
 
         lock.writeLock().lock();

@@ -97,19 +97,20 @@ interface Table {
      */
     @NotNull
     static Table from(@NotNull final FileChannel channel) throws IOException {
-        if (channel.size() < Integer.BYTES) {
-            throw new IOException(SSTable.INVALID_FORMAT);
+        final var size = channel.size();
+        if (size < Integer.BYTES) {
+            throw new IOException("Invalid SSTable format: file is too small: " + size);
         }
-        final var mapped = channel.map(READ_ONLY, 0, channel.size()).order(BIG_ENDIAN);
+        final var mapped = channel.map(READ_ONLY, 0, size).order(BIG_ENDIAN);
 
         final var magic = mapped.getInt(mapped.limit() - Integer.BYTES);
         if (magic != SSTable.MAGIC) {
-            throw new IOException(SSTable.INVALID_FORMAT);
+            throw new IOException("Invalid SSTable format: magic const is missing");
         }
 
         final var entriesCount = mapped.getInt(mapped.limit() - Integer.BYTES * 2);
         if (entriesCount <= 0 || mapped.limit() < Integer.BYTES + Integer.BYTES * entriesCount) {
-            throw new IOException(SSTable.INVALID_FORMAT);
+            throw new IOException("Invalid SSTable format: wrong entries count: " + entriesCount);
         }
 
         final var offsets = mapped.duplicate()
