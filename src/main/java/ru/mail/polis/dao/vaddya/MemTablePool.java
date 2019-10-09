@@ -14,6 +14,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import org.jetbrains.annotations.NotNull;
 
+import static ru.mail.polis.dao.vaddya.IteratorUtils.collectIterators;
+import static ru.mail.polis.dao.vaddya.IteratorUtils.mergeIterators;
+
 @ThreadSafe
 final class MemTablePool implements Table, Closeable {
     private final ReadWriteLock lock;
@@ -43,11 +46,11 @@ final class MemTablePool implements Table, Closeable {
         lock.readLock().lock();
         Collection<Iterator<TableEntry>> iterators;
         try {
-            iterators = IteratorUtils.collectIterators(currentTable, pendingFlush.values(), from);
+            iterators = collectIterators(currentTable, pendingFlush.values(), from);
         } finally {
             lock.readLock().unlock();
         }
-        return IteratorUtils.mergeIterators(iterators);
+        return mergeIterators(iterators);
     }
 
     @Override
@@ -98,7 +101,7 @@ final class MemTablePool implements Table, Closeable {
         }
     }
 
-    void flushed(int generation) {
+    void flushed(final int generation) {
         lock.writeLock().lock();
         try {
             pendingFlush.remove(generation);

@@ -25,28 +25,35 @@ import one.nio.server.AcceptorConfig;
 public class ServiceImpl extends HttpServer implements Service {
     private static final Logger LOG = LoggerFactory.getLogger(ServiceImpl.class);
     private static final Charset DEFAULT_CHARSET = Charsets.UTF_8;
-    
+
     private final DAO dao;
-    
+
     public ServiceImpl(
             final int port,
             @NotNull final DAO dao) throws IOException {
         super(createConfig(port));
         this.dao = dao;
     }
-    
+
     @Override
     public void handleDefault(
             @NotNull final Request request,
             @NotNull final HttpSession session) throws IOException {
         session.sendResponse(emptyResponse(Response.BAD_REQUEST));
     }
-    
+
     @Path("/v0/status")
     public Response status() {
         return emptyResponse(Response.OK);
     }
-    
+
+    /**
+     * Process HTTP request to get, put or delete an entity by ID
+     *
+     * @param id      entity ID
+     * @param request HTTP request
+     * @return HTTP response
+     */
     @Path("/v0/entity")
     public Response entity(
             @Param("id") final String id,
@@ -72,7 +79,7 @@ public class ServiceImpl extends HttpServer implements Service {
             return emptyResponse(Response.INTERNAL_ERROR);
         }
     }
-    
+
     @NotNull
     private Response getEntity(@NotNull final ByteBuffer key) throws IOException {
         try {
@@ -82,7 +89,7 @@ public class ServiceImpl extends HttpServer implements Service {
             return emptyResponse(Response.NOT_FOUND);
         }
     }
-    
+
     @NotNull
     private Response putEntity(
             @NotNull final ByteBuffer key,
@@ -94,40 +101,40 @@ public class ServiceImpl extends HttpServer implements Service {
         dao.upsert(key, body);
         return emptyResponse(Response.CREATED);
     }
-    
+
     @NotNull
     private Response deleteEntity(@NotNull final ByteBuffer key) throws IOException {
         dao.remove(key);
         return emptyResponse(Response.ACCEPTED);
     }
-    
+
     @NotNull
     private static HttpServerConfig createConfig(final int port) {
         final var acceptor = new AcceptorConfig();
         acceptor.port = port;
-        
+
         final var config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptor};
         return config;
     }
-    
+
     @NotNull
-    private static Response emptyResponse(String code) {
+    private static Response emptyResponse(@NotNull final String code) {
         return new Response(code, Response.EMPTY);
     }
-    
+
     @NotNull
     private static ByteBuffer wrapString(@NotNull final String str) {
         return wrapString(str, DEFAULT_CHARSET);
     }
-    
+
     @NotNull
     private static ByteBuffer wrapString(
             @NotNull final String str,
             @NotNull final Charset charset) {
         return ByteBuffer.wrap(str.getBytes(charset));
     }
-    
+
     @NotNull
     private static byte[] unwrapBytes(@NotNull final ByteBuffer buffer) {
         final var duplicate = buffer.duplicate();

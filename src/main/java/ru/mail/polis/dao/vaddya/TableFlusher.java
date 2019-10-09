@@ -49,8 +49,8 @@ final class TableFlusher implements Flusher, Closeable {
 
         @Override
         public void run() {
-            final var iterator = table.iterator(ByteBufferUtils.emptyBuffer());
-            dao.flushAndOpen(generation, iterator);
+            final var it = table.iterator(ByteBufferUtils.emptyBuffer());
+            dao.flushAndOpen(generation, it);
             phaser.arrive();
         }
     }

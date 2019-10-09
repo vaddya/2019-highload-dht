@@ -3,12 +3,12 @@ package ru.mail.polis.dao.vaddya;
 import java.util.NoSuchElementException;
 
 final class NoSuchEntityException extends NoSuchElementException {
-    NoSuchEntityException(String s) {
+    NoSuchEntityException(final String s) {
         super(s);
     }
     
     @Override
-    public synchronized Throwable fillInStackTrace() {
+    public Throwable fillInStackTrace() {
         return this;
     }
 }

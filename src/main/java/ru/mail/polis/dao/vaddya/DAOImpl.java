@@ -28,6 +28,7 @@ import ru.mail.polis.dao.DAO;
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static ru.mail.polis.dao.vaddya.ByteBufferUtils.emptyBuffer;
+import static ru.mail.polis.dao.vaddya.IteratorUtils.collectIterators;
 import static ru.mail.polis.dao.vaddya.IteratorUtils.mergeIterators;
 
 public class DAOImpl implements DAO {
@@ -61,7 +62,7 @@ public class DAOImpl implements DAO {
                 .filter(s -> s.endsWith(FINAL_SUFFIX))
                 .collect(toList());
         var maxGeneration = 0;
-        for (String name : tableFiles) {
+        for (final var name : tableFiles) {
             try {
                 final var generation = parseGeneration(name);
                 maxGeneration = Math.max(generation, maxGeneration);
@@ -86,28 +87,28 @@ public class DAOImpl implements DAO {
         Collection<Iterator<TableEntry>> iterators;
         lock.readLock().lock();
         try {
-            iterators = IteratorUtils.collectIterators(memTablePool, ssTables, from);
+            iterators = collectIterators(memTablePool, ssTables, from);
         } finally {
             lock.readLock().unlock();
         }
-        final var iterator = IteratorUtils.mergeIterators(iterators);
-        return Iterators.transform(iterator, e -> Record.of(e.getKey(), e.getValue()));
+        final var it = mergeIterators(iterators);
+        return Iterators.transform(it, e -> Record.of(e.getKey(), e.getValue()));
     }
 
     @Override
     @NotNull
     public ByteBuffer get(@NotNull final ByteBuffer key) throws NoSuchEntityException {
-        final var iter = iterator(key);
-        if (!iter.hasNext()) {
+        final var it = iterator(key);
+        if (!it.hasNext()) {
             throw new NoSuchEntityException("Not found");
         }
 
-        final var next = iter.next();
-        if (next.getKey().equals(key)) {
-            return next.getValue();
-        } else {
+        final var next = it.next();
+        if (!next.getKey().equals(key)) {
             throw new NoSuchEntityException("Not found");
-        }
+        }        
+
+        return next.getValue();
     }
 
     @Override
@@ -133,8 +134,8 @@ public class DAOImpl implements DAO {
         final var iterators = ssTables.stream()
                 .map(table -> table.iterator(emptyBuffer()))
                 .collect(toList());
-        final var iterator = mergeIterators(iterators);
-        final var path = flushEntries(0, iterator);
+        final var it = mergeIterators(iterators);
+        final var path = flushEntries(0, it);
         final var file = path.toFile();
         
         lock.writeLock().lock();
