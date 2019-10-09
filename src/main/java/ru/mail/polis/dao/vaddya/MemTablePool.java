@@ -136,7 +136,9 @@ final class MemTablePool implements Table, Closeable {
 
         lock.writeLock().lock();
         try {
-            flusher.flush(currentGeneration.getAndIncrement(), currentTable);
+            if (currentTable.currentSize() > 0) {
+                flusher.flush(currentGeneration.getAndIncrement(), currentTable);
+            }
         } finally {
             lock.writeLock().unlock();
         }

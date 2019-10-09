@@ -98,7 +98,7 @@ interface Table {
     @NotNull
     static Table from(@NotNull final FileChannel channel) throws IOException {
         final var size = channel.size();
-        if (size < Integer.BYTES) {
+        if (size < Integer.BYTES * 2) { // magic + count
             throw new IOException("Invalid SSTable format: file is too small: " + size);
         }
         final var mapped = channel.map(READ_ONLY, 0, size).order(BIG_ENDIAN);
