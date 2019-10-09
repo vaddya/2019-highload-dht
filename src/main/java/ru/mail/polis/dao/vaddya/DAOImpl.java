@@ -27,7 +27,6 @@ import ru.mail.polis.dao.DAO;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
-import static ru.mail.polis.dao.vaddya.ByteBufferUtils.emptyBuffer;
 import static ru.mail.polis.dao.vaddya.IteratorUtils.collectIterators;
 import static ru.mail.polis.dao.vaddya.IteratorUtils.mergeIterators;
 
@@ -106,7 +105,7 @@ public class DAOImpl implements DAO {
         final var next = it.next();
         if (!next.getKey().equals(key)) {
             throw new NoSuchEntityException("Not found");
-        }        
+        }
 
         return next.getValue();
     }
@@ -132,12 +131,12 @@ public class DAOImpl implements DAO {
     @Override
     public void compact() throws IOException {
         final var iterators = ssTables.stream()
-                .map(table -> table.iterator(emptyBuffer()))
+                .map(table -> table.iterator(ByteBufferUtils.emptyBuffer()))
                 .collect(toList());
         final var it = mergeIterators(iterators);
         final var path = flushEntries(0, it);
         final var file = path.toFile();
-        
+
         lock.writeLock().lock();
         try {
             Optional.ofNullable(root.listFiles(f -> !f.equals(file)))
@@ -187,7 +186,7 @@ public class DAOImpl implements DAO {
     private Path pathTo(@NotNull final String name) {
         return Path.of(root.getAbsolutePath(), name);
     }
-    
+
     @NotNull
     private static Table parseTable(@NotNull final Path path) throws IOException {
         try (var channel = FileChannel.open(path, StandardOpenOption.READ)) {

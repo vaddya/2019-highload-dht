@@ -48,7 +48,7 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     /**
-     * Process HTTP request to get, put or delete an entity by ID
+     * Process HTTP request to get, put or delete an entity by ID.
      *
      * @param id      entity ID
      * @param request HTTP request
