@@ -48,7 +48,7 @@ final class ByteBufferUtils {
         if (entry.hasTombstone()) {
             return ByteBuffer.allocate(Integer.BYTES + keySize + Long.BYTES)
                     .putInt(keySize)
-                    .put(entry.getKey())
+                    .put(entry.getKey().duplicate())
                     .putLong(-entry.ts())
                     .flip();
         }
@@ -56,10 +56,10 @@ final class ByteBufferUtils {
         final var valueSize = entry.getValue().remaining();
         return ByteBuffer.allocate(Integer.BYTES + keySize + Long.BYTES + Integer.BYTES + valueSize)
                 .putInt(keySize)
-                .put(entry.getKey())
+                .put(entry.getKey().duplicate())
                 .putLong(entry.ts())
                 .putInt(valueSize)
-                .put(entry.getValue())
+                .put(entry.getValue().duplicate())
                 .flip();
     }
 }

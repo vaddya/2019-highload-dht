@@ -1,13 +1,5 @@
 package ru.mail.polis.dao.vaddya;
 
-import com.google.common.collect.Iterators;
-import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import ru.mail.polis.Record;
-import ru.mail.polis.dao.DAO;
-import ru.mail.polis.dao.Iters;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -17,25 +9,37 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import com.google.common.collect.Iterators;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import ru.mail.polis.Record;
+import ru.mail.polis.dao.DAO;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 import static ru.mail.polis.dao.vaddya.ByteBufferUtils.emptyBuffer;
+import static ru.mail.polis.dao.vaddya.IteratorUtils.mergeIterators;
 
 public class DAOImpl implements DAO {
-    private static final String TEMP_SUFFIX = ".tmp";
-    private static final String FINAL_SUFFIX = ".db";
     private static final Logger LOG = LoggerFactory.getLogger(DAOImpl.class);
+    private static final String FINAL_SUFFIX = ".db";
+    private static final String TEMP_SUFFIX = ".tmp";
 
-    private final Table memTable = new MemTable();
-    private final List<Table> ssTables;
     private final File root;
-    private final long flushThresholdInBytes;
+    private final TableFlusher flusher;
+    private final MemTablePool memTablePool;
+    private final List<Table> ssTables;
+    private final ReadWriteLock lock;
 
     /**
      * Creates persistent DAO.
@@ -47,55 +51,57 @@ public class DAOImpl implements DAO {
             @NotNull final File root,
             final long flushThresholdInBytes) {
         this.root = root;
-        this.flushThresholdInBytes = flushThresholdInBytes;
-        this.ssTables = Optional.ofNullable(root.list())
+        this.flusher = new TableFlusher(this);
+        this.ssTables = new ArrayList<>();
+
+        final var tableFiles = Optional.ofNullable(root.list())
                 .map(Arrays::asList)
                 .orElse(emptyList())
                 .stream()
                 .filter(s -> s.endsWith(FINAL_SUFFIX))
-                .map(this::pathTo)
-                .map(this::parseTable)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
                 .collect(toList());
-    }
+        var maxGeneration = 0;
+        for (String name : tableFiles) {
+            try {
+                final var generation = parseGeneration(name);
+                maxGeneration = Math.max(generation, maxGeneration);
 
-    @NotNull
-    private Optional<Table> parseTable(@NotNull final Path path) {
-        try (var channel = FileChannel.open(path, StandardOpenOption.READ)) {
-            return Optional.of(Table.from(channel));
-        } catch (IOException e) {
-            LOG.error("{}: {}", e.getMessage(), path);
-            return Optional.empty();
+                final var path = Path.of(root.getAbsolutePath(), name);
+                final var table = parseTable(path);
+                this.ssTables.add(table);
+            } catch (IllegalArgumentException e) {
+                LOG.error("Unable to parse generation from file {}", name, e);
+            } catch (IOException e) {
+                LOG.error("Unable to read table from file {}", name, e);
+            }
         }
+
+        this.memTablePool = new MemTablePool(flusher, maxGeneration, flushThresholdInBytes);
+        this.lock = new ReentrantReadWriteLock();
     }
 
-    @NotNull
     @Override
+    @NotNull
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) {
-        final var iterators = ssTables.stream()
-                .map(table -> table.iterator(from))
-                .collect(toList());
-        iterators.add(memTable.iterator(from));
-        final var iterator = mergeIterators(iterators);
+        Collection<Iterator<TableEntry>> iterators;
+        lock.readLock().lock();
+        try {
+            iterators = IteratorUtils.collectIterators(memTablePool, ssTables, from);
+        } finally {
+            lock.readLock().unlock();
+        }
+        final var iterator = IteratorUtils.mergeIterators(iterators);
         return Iterators.transform(iterator, e -> Record.of(e.getKey(), e.getValue()));
     }
 
-    @SuppressWarnings("UnstableApiUsage")
-    private Iterator<TableEntry> mergeIterators(@NotNull final List<Iterator<TableEntry>> iterators) {
-        final var merged = Iterators.mergeSorted(iterators, TableEntry.COMPARATOR);
-        final var collapsed = Iters.collapseEquals(merged, TableEntry::getKey);
-        return Iterators.filter(collapsed, e -> !e.hasTombstone());
-    }
-
-    @NotNull
     @Override
+    @NotNull
     public ByteBuffer get(@NotNull final ByteBuffer key) throws NoSuchEntityException {
         final var iter = iterator(key);
         if (!iter.hasNext()) {
             throw new NoSuchEntityException("Not found");
         }
-    
+
         final var next = iter.next();
         if (next.getKey().equals(key)) {
             return next.getValue();
@@ -107,26 +113,19 @@ public class DAOImpl implements DAO {
     @Override
     public void upsert(
             @NotNull final ByteBuffer key,
-            @NotNull final ByteBuffer value) throws IOException {
-        memTable.upsert(key.duplicate().asReadOnlyBuffer(), value.duplicate().asReadOnlyBuffer());
-        if (memTable.currentSize() > flushThresholdInBytes) {
-            flushMemTable();
-        }
+            @NotNull final ByteBuffer value) {
+        memTablePool.upsert(key.duplicate().asReadOnlyBuffer(), value.duplicate().asReadOnlyBuffer());
     }
 
     @Override
-    public void remove(@NotNull final ByteBuffer key) throws IOException {
-        memTable.remove(key.duplicate().asReadOnlyBuffer());
-        if (memTable.currentSize() > flushThresholdInBytes) {
-            flushMemTable();
-        }
+    public void remove(@NotNull final ByteBuffer key) {
+        memTablePool.remove(key.duplicate().asReadOnlyBuffer());
     }
 
     @Override
-    public void close() throws IOException {
-        if (memTable.currentSize() > 0) {
-            flushMemTable();
-        }
+    public void close() {
+        memTablePool.close();
+        flusher.close();
     }
 
     @Override
@@ -134,37 +133,50 @@ public class DAOImpl implements DAO {
         final var iterators = ssTables.stream()
                 .map(table -> table.iterator(emptyBuffer()))
                 .collect(toList());
-        final var path = flushEntries(mergeIterators(iterators));
-
+        final var iterator = mergeIterators(iterators);
+        final var path = flushEntries(0, iterator);
         final var file = path.toFile();
-        Optional.ofNullable(root.listFiles(f -> !f.equals(file)))
-                .map(Arrays::asList)
-                .orElse(emptyList())
-                .forEach(DAOImpl::deleteCompactedFile);
-
-        final var table = parseTable(path);
-        ssTables.clear();
-        table.ifPresent(ssTables::add);
+        
+        lock.writeLock().lock();
+        try {
+            Optional.ofNullable(root.listFiles(f -> !f.equals(file)))
+                    .map(Arrays::asList)
+                    .orElse(emptyList())
+                    .forEach(DAOImpl::deleteCompactedFile);
+        } finally {
+            lock.writeLock().unlock();
+        }
     }
 
-    private void flushMemTable() throws IOException {
-        final var iterator = memTable.iterator(emptyBuffer());
-        final var path = flushEntries(iterator);
+    void flushAndOpen(
+            final int generation,
+            @NotNull final Iterator<TableEntry> iterator) {
+        try {
+            final var path = flushEntries(generation, iterator);
+            final var table = parseTable(path);
 
-        final var table = parseTable(path);
-        memTable.clear();
-        table.ifPresent(ssTables::add);
+            lock.writeLock().lock();
+            try {
+                memTablePool.flushed(generation);
+                ssTables.add(table);
+            } finally {
+                lock.writeLock().unlock();
+            }
+        } catch (IOException e) {
+            LOG.error("Flushing error", e);
+        }
     }
 
     @NotNull
-    private Path flushEntries(@NotNull final Iterator<TableEntry> iterator) throws IOException {
-        final var now = LocalDateTime.now().toString();
-        final var tempPath = pathTo(now + TEMP_SUFFIX);
+    private Path flushEntries(
+            final int generation,
+            @NotNull final Iterator<TableEntry> iterator) throws IOException {
+        final var tempPath = pathTo(generation + TEMP_SUFFIX);
         try (var channel = FileChannel.open(tempPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
             Table.flushEntries(iterator, channel);
         }
 
-        final var finalPath = pathTo(now + FINAL_SUFFIX);
+        final var finalPath = pathTo(generation + FINAL_SUFFIX);
         Files.move(tempPath, finalPath, StandardCopyOption.ATOMIC_MOVE);
 
         return finalPath;
@@ -173,6 +185,21 @@ public class DAOImpl implements DAO {
     @NotNull
     private Path pathTo(@NotNull final String name) {
         return Path.of(root.getAbsolutePath(), name);
+    }
+    
+    @NotNull
+    private static Table parseTable(@NotNull final Path path) throws IOException {
+        try (var channel = FileChannel.open(path, StandardOpenOption.READ)) {
+            return Table.from(channel);
+        }
+    }
+
+    private static int parseGeneration(@NotNull final String name) throws IllegalArgumentException {
+        if (name.length() <= FINAL_SUFFIX.length()) {
+            throw new IllegalArgumentException("File name is too short");
+        }
+        final var substring = name.substring(0, name.length() - FINAL_SUFFIX.length());
+        return Integer.parseInt(substring);
     }
 
     private static void deleteCompactedFile(@NotNull final File file) {

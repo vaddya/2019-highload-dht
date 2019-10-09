@@ -1,25 +1,28 @@
 package ru.mail.polis.dao.vaddya;
 
-import org.jetbrains.annotations.NotNull;
-
+import javax.annotation.concurrent.ThreadSafe;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NavigableMap;
-import java.util.TreeMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import org.jetbrains.annotations.NotNull;
+
+@ThreadSafe
 final class MemTable implements Table {
-    private final NavigableMap<ByteBuffer, TableEntry> table = new TreeMap<>();
-    private int currentSize;
+    private final NavigableMap<ByteBuffer, TableEntry> table = new ConcurrentSkipListMap<>();
+    private final AtomicInteger currentSize = new AtomicInteger();
 
     @Override
     @NotNull
     public Iterator<TableEntry> iterator(@NotNull final ByteBuffer from) {
         return table.tailMap(from).values().iterator();
     }
-
+    
     @Override
     public int currentSize() {
-        return currentSize;
+        return currentSize.get();
     }
 
     @Override
@@ -27,18 +30,18 @@ final class MemTable implements Table {
             @NotNull final ByteBuffer key,
             @NotNull final ByteBuffer value) {
         table.put(key, TableEntry.upsert(key, value));
-        currentSize += Integer.BYTES + key.remaining() + Long.BYTES + Integer.BYTES + value.remaining();
+        currentSize.addAndGet(Integer.BYTES + key.remaining() + Long.BYTES + Integer.BYTES + value.remaining());
     }
 
     @Override
     public void remove(@NotNull final ByteBuffer key) {
         table.put(key, TableEntry.delete(key));
-        currentSize += Integer.BYTES + key.remaining() + Long.BYTES;
+        currentSize.addAndGet(Integer.BYTES + key.remaining() + Long.BYTES);
     }
 
     @Override
     public void clear() {
         table.clear();
-        currentSize = 0;
+        currentSize.set(0);
     }
 }
