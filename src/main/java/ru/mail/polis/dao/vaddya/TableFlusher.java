@@ -6,6 +6,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Phaser;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import org.jetbrains.annotations.NotNull;
 
 @ThreadSafe
@@ -18,7 +19,8 @@ final class TableFlusher implements Flusher, Closeable {
 
     TableFlusher(@NotNull final DAOImpl dao) {
         this.dao = dao;
-        this.executor = Executors.newFixedThreadPool(THREAD_COUNT);
+        final var threadFactory = new ThreadFactoryBuilder().setNameFormat("flusher-%d").build();
+        this.executor = Executors.newFixedThreadPool(THREAD_COUNT, threadFactory);
         this.phaser = new Phaser(1); // one party for close call  
     }
 
@@ -49,8 +51,7 @@ final class TableFlusher implements Flusher, Closeable {
 
         @Override
         public void run() {
-            final var it = table.iterator(ByteBufferUtils.emptyBuffer());
-            dao.flushAndOpen(generation, it);
+            dao.flushAndOpen(generation, table);
             phaser.arrive();
         }
     }

@@ -1,5 +1,6 @@
 package ru.mail.polis.dao.vaddya;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -30,10 +31,11 @@ import static java.util.stream.Collectors.toList;
 import static ru.mail.polis.dao.vaddya.IteratorUtils.collectIterators;
 import static ru.mail.polis.dao.vaddya.IteratorUtils.mergeIterators;
 
+@ThreadSafe
 public class DAOImpl implements DAO {
-    private static final Logger LOG = LoggerFactory.getLogger(DAOImpl.class);
     private static final String FINAL_SUFFIX = ".db";
     private static final String TEMP_SUFFIX = ".tmp";
+    private static final Logger log = LoggerFactory.getLogger(DAOImpl.class);
 
     private final File root;
     private final TableFlusher flusher;
@@ -70,14 +72,16 @@ public class DAOImpl implements DAO {
                 final var table = parseTable(path);
                 this.ssTables.add(table);
             } catch (IllegalArgumentException e) {
-                LOG.error("Unable to parse generation from file {}", name, e);
+                log.error("Unable to parse generation from file {}", name, e);
             } catch (IOException e) {
-                LOG.error("Unable to read table from file {}", name, e);
+                log.error("Unable to read table from file {}", name, e);
             }
         }
 
         this.memTablePool = new MemTablePool(flusher, maxGeneration, flushThresholdInBytes);
         this.lock = new ReentrantReadWriteLock();
+        
+        log.debug("DAO was opened in directory {}, SSTables count: {}", root, ssTables.size());
     }
 
     @Override
@@ -130,9 +134,16 @@ public class DAOImpl implements DAO {
 
     @Override
     public void compact() throws IOException {
-        final var iterators = ssTables.stream()
-                .map(table -> table.iterator(ByteBufferUtils.emptyBuffer()))
-                .collect(toList());
+        Collection<Iterator<TableEntry>> iterators;
+        lock.readLock().lock();
+        try {
+            iterators = ssTables.stream()
+                    .map(table -> table.iterator(ByteBufferUtils.emptyBuffer()))
+                    .collect(toList());
+        } finally {
+            lock.readLock().unlock();
+        }
+        
         final var it = mergeIterators(iterators);
         final var path = flushEntries(memTablePool.getAndIncrementGeneration(), it);
         final var file = path.toFile();
@@ -146,24 +157,29 @@ public class DAOImpl implements DAO {
         } finally {
             lock.writeLock().unlock();
         }
+        
+        log.debug("SSTables were compacted into {}", path);
     }
 
     void flushAndOpen(
             final int generation,
-            @NotNull final Iterator<TableEntry> iterator) {
+            @NotNull final Table memTable) {
         try {
-            final var path = flushEntries(generation, iterator);
-            final var table = parseTable(path);
+            final var it = memTable.iterator(ByteBufferUtils.emptyBuffer());
+            final var path = flushEntries(generation, it);
+            final var ssTable = parseTable(path);
 
             lock.writeLock().lock();
             try {
                 memTablePool.flushed(generation);
-                ssTables.add(table);
+                ssTables.add(ssTable);
             } finally {
                 lock.writeLock().unlock();
             }
+            
+            log.debug("Table {} was flushed to the disk into {}", generation, path);
         } catch (IOException e) {
-            LOG.error("Flushing error", e);
+            log.error("Flushing error", e);
         }
     }
 
@@ -205,9 +221,9 @@ public class DAOImpl implements DAO {
     private static void deleteCompactedFile(@NotNull final File file) {
         try {
             Files.delete(file.toPath());
-            LOG.trace("Table is removed during compaction: {}", file);
+            log.trace("Table was removed during compaction: {}", file);
         } catch (IOException e) {
-            LOG.error("Unable to remove file {} during compaction: {}", file, e.getMessage());
+            log.error("Unable to remove file {} during compaction: {}", file, e.getMessage());
         }
     }
 }
