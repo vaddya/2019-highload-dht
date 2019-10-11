@@ -113,7 +113,7 @@ final class MemTablePool implements Table, Closeable {
             lock.writeLock().unlock();
         }
     }
-    
+
     int getAndIncrementGeneration() {
         return currentGeneration.getAndIncrement();
     }
@@ -125,8 +125,8 @@ final class MemTablePool implements Table, Closeable {
                 final var generation = currentGeneration.getAndIncrement();
                 pendingFlush.put(generation, currentTable);
                 flusher.flush(generation, currentTable);
+                log.debug("Table {} with size {} bytes was submitted to flush", generation, currentTable.currentSize());
                 currentTable = new MemTable();
-                log.debug("Table {} with size {}B was submitted to flush", generation, currentTable.currentSize());
             }
         } finally {
             lock.writeLock().unlock();
@@ -138,7 +138,7 @@ final class MemTablePool implements Table, Closeable {
         if (!stopped.compareAndSet(false, true)) {
             return;
         }
-        
+
         log.debug("Closing MemTablePool");
         lock.writeLock().lock();
         try {

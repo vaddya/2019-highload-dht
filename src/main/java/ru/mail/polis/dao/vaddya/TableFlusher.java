@@ -28,31 +28,18 @@ final class TableFlusher implements Flusher, Closeable {
     public void flush(
             final int generation, 
             @NotNull final Table table) {
-        final var task = new FlushTask(generation, table);
         phaser.register();
-        executor.execute(task);
+        executor.execute(() -> {
+            try {
+                dao.flushAndOpen(generation, table);
+            } finally {
+                phaser.arrive();
+            }
+        });
     }
 
     @Override
     public void close() {
         phaser.arriveAndAwaitAdvance();
-    }
-
-    private class FlushTask implements Runnable {
-        private final int generation;
-        private final Table table;
-
-        FlushTask(
-                final int generation,
-                @NotNull final Table table) {
-            this.generation = generation;
-            this.table = table;
-        }
-
-        @Override
-        public void run() {
-            dao.flushAndOpen(generation, table);
-            phaser.arrive();
-        }
     }
 }
