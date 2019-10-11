@@ -158,10 +158,7 @@ public class DAOImpl implements DAO {
 
         lock.writeLock().lock();
         try {
-            generations.stream()
-                    .peek(ssTables::remove)
-                    .map(this::pathToGeneration)
-                    .forEach(DAOImpl::deleteCompactedFile);
+            generations.forEach(ssTables::remove); 
             if (compactedTable == null) {
                 log.debug("SSTables were collapsed into nothing");
             } else {
@@ -171,6 +168,10 @@ public class DAOImpl implements DAO {
         } finally {
             lock.writeLock().unlock();
         }
+
+        generations.stream()
+                .map(this::pathToGeneration)
+                .forEach(DAOImpl::deleteCompactedFile);
     }
 
     @NotNull
