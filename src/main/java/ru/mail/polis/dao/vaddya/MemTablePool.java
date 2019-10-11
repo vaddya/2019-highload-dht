@@ -145,7 +145,7 @@ final class MemTablePool implements Table, Closeable {
             if (currentTable.currentSize() > 0) {
                 final var generation = currentGeneration.getAndIncrement();
                 flusher.flush(generation, currentTable);
-                log.debug("Table {} with size {}B was submitted to flush", generation, currentTable.currentSize());
+                log.debug("Table {} with size {} bytes was submitted to flush", generation, currentTable.currentSize());
             }
         } finally {
             lock.writeLock().unlock();
