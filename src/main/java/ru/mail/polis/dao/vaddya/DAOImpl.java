@@ -162,11 +162,11 @@ public class DAOImpl implements DAO {
                     .peek(ssTables::remove)
                     .map(this::pathToGeneration)
                     .forEach(DAOImpl::deleteCompactedFile);
-            if (compactedTable != null) {
-                this.ssTables.put(generation, compactedTable);
-                log.debug("SSTables were compacted into {}", path);
-            } else {
+            if (compactedTable == null) {
                 log.debug("SSTables were collapsed into nothing");
+            } else {
+                ssTables.put(generation, compactedTable);
+                log.debug("SSTables were compacted into {}", path);
             }
         } finally {
             lock.writeLock().unlock();
