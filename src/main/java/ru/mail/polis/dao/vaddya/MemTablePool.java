@@ -24,7 +24,7 @@ final class MemTablePool implements Table, Closeable {
     private static final Logger log = LoggerFactory.getLogger(MemTablePool.class);
 
     private final ReadWriteLock lock;
-    private volatile Table currentTable;
+    private Table currentTable;
     private final Map<Integer, Table> pendingFlush;
     private final Flusher flusher;
     private final AtomicInteger currentGeneration;
@@ -78,7 +78,12 @@ final class MemTablePool implements Table, Closeable {
         if (stopped.get()) {
             throw new IllegalStateException("Mem table was already closed");
         }
-        currentTable.upsert(key, value);
+        lock.readLock().lock();
+        try {
+            currentTable.upsert(key, value);
+        } finally {
+            lock.readLock().unlock();
+        }
         if (currentTable.currentSize() > flushThresholdInBytes) { // to avoid extra call & lock
             enqueueToFlush();
         }
@@ -89,7 +94,12 @@ final class MemTablePool implements Table, Closeable {
         if (stopped.get()) {
             throw new IllegalStateException("Mem table was already closed");
         }
-        currentTable.remove(key);
+        lock.readLock().lock();
+        try {
+            currentTable.remove(key);
+        } finally {
+            lock.readLock().unlock();
+        }
         if (currentTable.currentSize() > flushThresholdInBytes) { // to avoid extra call & lock
             enqueueToFlush();
         }

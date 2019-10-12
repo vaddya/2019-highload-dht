@@ -115,8 +115,6 @@ public class ServiceImpl extends HttpServer implements Service {
 
         final var config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptor};
-        config.minWorkers = 4;
-        config.maxWorkers = 8;
         return config;
     }
 
