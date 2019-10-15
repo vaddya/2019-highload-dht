@@ -1,11 +1,8 @@
 package ru.mail.polis.service.vaddya;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.Charset;
-import java.util.NoSuchElementException;
-
-import com.google.common.base.Charsets;
+import one.nio.http.*;
+import one.nio.net.Socket;
+import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -13,27 +10,15 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.service.Service;
 
-import one.nio.http.HttpServer;
-import one.nio.http.HttpServerConfig;
-import one.nio.http.HttpSession;
-import one.nio.http.Param;
-import one.nio.http.Path;
-import one.nio.http.Request;
-import one.nio.http.Response;
-import one.nio.net.Socket;
-import one.nio.server.AcceptorConfig;
-import one.nio.server.RejectedSessionException;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.NoSuchElementException;
 
 import static ru.mail.polis.service.vaddya.ByteBufferUtils.unwrapBytes;
 import static ru.mail.polis.service.vaddya.ByteBufferUtils.wrapString;
 
 public class ServiceImpl extends HttpServer implements Service {
     private static final Logger log = LoggerFactory.getLogger(ServiceImpl.class);
-
-    @FunctionalInterface
-    private interface ResponseSupplier {
-        Response supply() throws IOException;
-    }
 
     private final DAO dao;
 
@@ -53,7 +38,7 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     @Override
-    public HttpSession createSession(Socket socket) {
+    public HttpSession createSession(@NotNull final Socket socket) {
         return new StreamingSession(socket, this);
     }
 
@@ -83,24 +68,20 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
         final var key = wrapString(id);
-        try {
-            switch (request.getMethod()) {
-                case Request.METHOD_GET:
-                    asyncExecute(session, () -> getEntity(key));
-                    break;
-                case Request.METHOD_PUT:
-                    asyncExecute(session, () -> putEntity(key, request.getBody()));
-                    break;
-                case Request.METHOD_DELETE:
-                    asyncExecute(session, () -> deleteEntity(key));
-                    break;
-                default:
-                    log.warn("Not supported HTTP-method: " + request.getMethod());
-                    sendEmptyResponse(session, Response.METHOD_NOT_ALLOWED);
-            }
-        } catch (Exception e) {
-            log.error("Exception during request handling for id=" + id, e);
-            sendEmptyResponse(session, Response.INTERNAL_ERROR);
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                asyncExecute(session, () -> getEntity(key));
+                break;
+            case Request.METHOD_PUT:
+                asyncExecute(session, () -> putEntity(key, request.getBody()));
+                break;
+            case Request.METHOD_DELETE:
+                asyncExecute(session, () -> deleteEntity(key));
+                break;
+            default:
+                log.warn("Not supported HTTP-method: " + request.getMethod());
+                sendEmptyResponse(session, Response.METHOD_NOT_ALLOWED);
+                break;
         }
     }
 
@@ -214,5 +195,10 @@ public class ServiceImpl extends HttpServer implements Service {
             @NotNull final HttpSession session,
             @NotNull final String code) {
         sendResponse(session, emptyResponse(code));
+    }
+
+    @FunctionalInterface
+    private interface ResponseSupplier {
+        Response supply() throws IOException;
     }
 }
