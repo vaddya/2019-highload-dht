@@ -1,6 +1,12 @@
 package ru.mail.polis.service.vaddya;
 
-import one.nio.http.*;
+import one.nio.http.HttpServer;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpSession;
+import one.nio.http.Param;
+import one.nio.http.Path;
+import one.nio.http.Request;
+import one.nio.http.Response;
 import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
@@ -99,7 +105,7 @@ public class ServiceImpl extends HttpServer implements Service {
             @Param("end") final String end,
             final Request request,
             final HttpSession session) {
-        if (start == null || start.isEmpty() || (end != null && end.isEmpty())) {
+        if (start == null || start.isEmpty() || end != null && end.isEmpty()) {
             sendEmptyResponse(session, Response.BAD_REQUEST);
             return;
         }
@@ -108,7 +114,7 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
         final var startBuffer = wrapString(start);
-        final var endBuffer = end != null ? wrapString(end) : null;
+        final var endBuffer = end == null ? null : wrapString(end);
         try {
             final var range = dao.range(startBuffer, endBuffer);
             ((StreamingSession) session).streamRange(range);
@@ -151,7 +157,7 @@ public class ServiceImpl extends HttpServer implements Service {
         asyncExecute(() -> {
             try {
                 sendResponse(session, supplier.supply());
-            } catch (Exception e) {
+            } catch (IOException e) {
                 log.error("Unable to create response", e);
             }
         });
@@ -181,11 +187,11 @@ public class ServiceImpl extends HttpServer implements Service {
             @NotNull final Response response) {
         try {
             session.sendResponse(response);
-        } catch (Exception e) {
+        } catch (IOException e) {
             try {
                 log.error("Unable to send response", e);
                 session.sendError(Response.INTERNAL_ERROR, null);
-            } catch (Exception ex) {
+            } catch (IOException ex) {
                 log.error("Unable to send error", e);
             }
         }

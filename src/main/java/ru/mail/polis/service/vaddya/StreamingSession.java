@@ -19,7 +19,9 @@ final class StreamingSession extends HttpSession {
 
     private Iterator<Record> records;
 
-    StreamingSession(Socket socket, HttpServer server) {
+    StreamingSession(
+            @NotNull final Socket socket,
+            @NotNull final HttpServer server) {
         super(socket, server);
     }
 
@@ -67,6 +69,7 @@ final class StreamingSession extends HttpSession {
         }
     }
 
+    @NotNull
     private static byte[] recordToChunk(@NotNull final Record record) {
         final var key = record.getKey();
         final var value = record.getValue();
