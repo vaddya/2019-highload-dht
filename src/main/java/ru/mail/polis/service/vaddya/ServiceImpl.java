@@ -24,9 +24,16 @@ import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import one.nio.server.RejectedSessionException;
 
+import static ru.mail.polis.service.vaddya.ByteBufferUtils.unwrapBytes;
+import static ru.mail.polis.service.vaddya.ByteBufferUtils.wrapString;
+
 public class ServiceImpl extends HttpServer implements Service {
     private static final Logger log = LoggerFactory.getLogger(ServiceImpl.class);
-    private static final Charset DEFAULT_CHARSET = Charsets.UTF_8;
+
+    @FunctionalInterface
+    private interface ResponseSupplier {
+        Response supply() throws IOException;
+    }
 
     private final DAO dao;
 
@@ -41,12 +48,12 @@ public class ServiceImpl extends HttpServer implements Service {
     @Override
     public void handleDefault(
             @NotNull final Request request,
-            @NotNull final HttpSession session) throws IOException {
+            @NotNull final HttpSession session) {
         sendEmptyResponse(session, Response.BAD_REQUEST);
     }
 
     @Override
-    public HttpSession createSession(Socket socket) throws RejectedSessionException {
+    public HttpSession createSession(Socket socket) {
         return new StreamingSession(socket, this);
     }
 
@@ -123,7 +130,7 @@ public class ServiceImpl extends HttpServer implements Service {
         final var endBuffer = end != null ? wrapString(end) : null;
         try {
             final var range = dao.range(startBuffer, endBuffer);
-            ((StreamingSession) session).sendRange(range);
+            ((StreamingSession) session).streamRange(range);
         } catch (IOException e) {
             log.error("Unable to get range of values", e);
         }
@@ -207,30 +214,5 @@ public class ServiceImpl extends HttpServer implements Service {
             @NotNull final HttpSession session,
             @NotNull final String code) {
         sendResponse(session, emptyResponse(code));
-    }
-
-    @NotNull
-    private static ByteBuffer wrapString(@NotNull final String str) {
-        return wrapString(str, DEFAULT_CHARSET);
-    }
-
-    @NotNull
-    private static ByteBuffer wrapString(
-            @NotNull final String str,
-            @NotNull final Charset charset) {
-        return ByteBuffer.wrap(str.getBytes(charset));
-    }
-
-    @NotNull
-    private static byte[] unwrapBytes(@NotNull final ByteBuffer buffer) {
-        final var duplicate = buffer.duplicate();
-        final var bytes = new byte[duplicate.remaining()];
-        duplicate.get(bytes);
-        return bytes;
-    }
-
-    @FunctionalInterface
-    private interface ResponseSupplier {
-        Response supply() throws IOException;
     }
 }

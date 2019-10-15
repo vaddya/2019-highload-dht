@@ -47,8 +47,8 @@ final class MemTablePool implements Table, Closeable {
     @NotNull
     @Override
     public Iterator<TableEntry> iterator(@NotNull final ByteBuffer from) {
-        lock.readLock().lock();
         Collection<Iterator<TableEntry>> iterators;
+        lock.readLock().lock();
         try {
             iterators = collectIterators(currentTable, pendingFlush.values(), from);
         } finally {
