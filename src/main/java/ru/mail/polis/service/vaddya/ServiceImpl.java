@@ -105,7 +105,11 @@ public class ServiceImpl extends HttpServer implements Service {
             @Param("end") final String end,
             final Request request,
             final HttpSession session) {
-        if (start == null || start.isEmpty() || end != null && end.isEmpty()) {
+        if (start == null || start.isEmpty()) {
+            sendEmptyResponse(session, Response.BAD_REQUEST);
+            return;
+        }
+        if (end != null && end.isEmpty()) {
             sendEmptyResponse(session, Response.BAD_REQUEST);
             return;
         }
