@@ -22,6 +22,7 @@ import java.util.Set;
 import org.jetbrains.annotations.NotNull;
 
 import ru.mail.polis.dao.DAO;
+import ru.mail.polis.service.vaddya.BasicTopology;
 import ru.mail.polis.service.vaddya.ServiceImpl;
 
 /**
@@ -57,7 +58,8 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Port out of range");
         }
 
+        final var nodes = new BasicTopology(topology, "http://localhost:" + port);
         final var workersCount = Runtime.getRuntime().availableProcessors();
-        return new ServiceImpl(port, workersCount, dao);
+        return ServiceImpl.create(port, nodes, dao, workersCount);
     }
 }

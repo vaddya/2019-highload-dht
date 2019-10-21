@@ -1,14 +1,10 @@
 package ru.mail.polis.service.vaddya;
 
-import one.nio.http.HttpServer;
-import one.nio.http.HttpServerConfig;
-import one.nio.http.HttpSession;
-import one.nio.http.Param;
-import one.nio.http.Path;
-import one.nio.http.Request;
-import one.nio.http.Response;
-import one.nio.net.Socket;
-import one.nio.server.AcceptorConfig;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Map;
+import java.util.NoSuchElementException;
+
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -16,10 +12,22 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.service.Service;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.NoSuchElementException;
+import one.nio.http.HttpClient;
+import one.nio.http.HttpException;
+import one.nio.http.HttpServer;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpSession;
+import one.nio.http.Param;
+import one.nio.http.Path;
+import one.nio.http.Request;
+import one.nio.http.Response;
+import one.nio.net.ConnectionString;
+import one.nio.net.Socket;
+import one.nio.pool.PoolException;
+import one.nio.server.AcceptorConfig;
 
+import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toMap;
 import static ru.mail.polis.service.vaddya.ByteBufferUtils.unwrapBytes;
 import static ru.mail.polis.service.vaddya.ByteBufferUtils.wrapString;
 
@@ -27,13 +35,38 @@ public class ServiceImpl extends HttpServer implements Service {
     private static final Logger log = LoggerFactory.getLogger(ServiceImpl.class);
 
     private final DAO dao;
+    private final Topology<String> topology;
+    private final Map<String, HttpClient> httpClients;
 
-    public ServiceImpl(
+    @NotNull
+    public static Service create(
             final int port,
-            final int workersCount,
+            @NotNull final Topology<String> topology,
+            @NotNull final DAO dao,
+            final int workersCount) throws IOException {
+        final var acceptor = new AcceptorConfig();
+        acceptor.port = port;
+
+        final var config = new HttpServerConfig();
+        config.acceptors = new AcceptorConfig[]{acceptor};
+        config.minWorkers = workersCount;
+        config.maxWorkers = workersCount;
+
+        return new ServiceImpl(config, topology, dao);
+    }
+
+    private ServiceImpl(
+            @NotNull final HttpServerConfig config,
+            @NotNull final Topology<String> topology,
             @NotNull final DAO dao) throws IOException {
-        super(createConfig(port, workersCount));
+        super(config);
+
+        this.topology = topology;
         this.dao = dao;
+        this.httpClients = topology.all()
+                .stream()
+                .filter(node -> !topology.isMe(node))
+                .collect(toMap(identity(), ServiceImpl::createHttpClient));
     }
 
     @Override
@@ -74,6 +107,12 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
         final var key = wrapString(id);
+        final var node = topology.primaryFor(key);
+        if (!topology.isMe(node)) {
+            asyncExecute(session, () -> proxy(node, request));
+            return;
+        }
+
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 asyncExecute(session, () -> getEntity(key));
@@ -155,6 +194,18 @@ public class ServiceImpl extends HttpServer implements Service {
         return emptyResponse(Response.ACCEPTED);
     }
 
+    @NotNull
+    private Response proxy(
+            @NotNull final String node,
+            @NotNull final Request request) throws IOException {
+        try {
+            return httpClients.get(node).invoke(request);
+        } catch (InterruptedException | PoolException | HttpException e) {
+            log.error("Unable to proxy request", e);
+            return emptyResponse(Response.INTERNAL_ERROR);
+        }
+    }
+
     private void asyncExecute(
             @NotNull final HttpSession session,
             @NotNull final ResponseSupplier supplier) {
@@ -165,20 +216,6 @@ public class ServiceImpl extends HttpServer implements Service {
                 log.error("Unable to create response", e);
             }
         });
-    }
-
-    @NotNull
-    private static HttpServerConfig createConfig(
-            final int port,
-            final int workersCount) {
-        final var acceptor = new AcceptorConfig();
-        acceptor.port = port;
-
-        final var config = new HttpServerConfig();
-        config.acceptors = new AcceptorConfig[]{acceptor};
-        config.minWorkers = workersCount;
-        config.maxWorkers = workersCount;
-        return config;
     }
 
     @NotNull
@@ -207,8 +244,14 @@ public class ServiceImpl extends HttpServer implements Service {
         sendResponse(session, emptyResponse(code));
     }
 
+    @NotNull
+    private static HttpClient createHttpClient(@NotNull final String node) {
+        return new HttpClient(new ConnectionString(node + "?timout=100"));
+    }
+
     @FunctionalInterface
     private interface ResponseSupplier {
+        @NotNull
         Response supply() throws IOException;
     }
 }
