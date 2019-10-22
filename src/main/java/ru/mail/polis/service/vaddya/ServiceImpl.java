@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.vaddya.topology.Topology;
 
 import one.nio.http.HttpClient;
 import one.nio.http.HttpException;
@@ -63,9 +64,8 @@ public class ServiceImpl extends HttpServer implements Service {
 
         this.topology = topology;
         this.dao = dao;
-        this.httpClients = topology.all()
+        this.httpClients = topology.others()
                 .stream()
-                .filter(node -> !topology.isMe(node))
                 .collect(toMap(identity(), ServiceImpl::createHttpClient));
     }
 
@@ -202,7 +202,7 @@ public class ServiceImpl extends HttpServer implements Service {
             return httpClients.get(node).invoke(request);
         } catch (InterruptedException | PoolException | HttpException e) {
             log.error("Unable to proxy request", e);
-            return emptyResponse(Response.INTERNAL_ERROR);
+            throw new IOException("Unable to proxy request", e);
         }
     }
 
@@ -214,6 +214,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 sendResponse(session, supplier.supply());
             } catch (IOException e) {
                 log.error("Unable to create response", e);
+                sendEmptyResponse(session, Response.INTERNAL_ERROR);
             }
         });
     }
@@ -246,7 +247,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
     @NotNull
     private static HttpClient createHttpClient(@NotNull final String node) {
-        return new HttpClient(new ConnectionString(node + "?timout=100"));
+        return new HttpClient(new ConnectionString(node + "?timeout=100"));
     }
 
     @FunctionalInterface

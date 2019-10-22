@@ -20,10 +20,10 @@ import java.io.IOException;
 import java.util.Set;
 
 import org.jetbrains.annotations.NotNull;
-
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.service.vaddya.BasicTopology;
 import ru.mail.polis.service.vaddya.ServiceImpl;
+
+import static ru.mail.polis.service.vaddya.topology.Topology.consistentHashing;
 
 /**
  * Constructs {@link Service} instances.
@@ -32,6 +32,8 @@ import ru.mail.polis.service.vaddya.ServiceImpl;
  */
 public final class ServiceFactory {
     private static final long MAX_HEAP = 256 * 1024 * 1024;
+    private static final int VNODE_COUNT = 100;
+    private static final int WORKERS_COUNT = Runtime.getRuntime().availableProcessors();
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -58,8 +60,7 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Port out of range");
         }
 
-        final var nodes = new BasicTopology(topology, "http://localhost:" + port);
-        final var workersCount = Runtime.getRuntime().availableProcessors();
-        return ServiceImpl.create(port, nodes, dao, workersCount);
+        final var nodes = consistentHashing(topology, "http://localhost:" + port, VNODE_COUNT);
+        return ServiceImpl.create(port, nodes, dao, WORKERS_COUNT);
     }
 }
