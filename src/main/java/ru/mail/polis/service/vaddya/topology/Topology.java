@@ -7,7 +7,7 @@ import java.util.stream.Collectors;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Calculates the data owner for the key
+ * Calculates the data owner for the key.
  */
 public interface Topology<T> {
 

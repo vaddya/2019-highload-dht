@@ -39,6 +39,16 @@ public class ServiceImpl extends HttpServer implements Service {
     private final Topology<String> topology;
     private final Map<String, HttpClient> httpClients;
 
+    /**
+     * Create a {@link HttpServer} instance that implements {@link Service}.
+     *
+     * @param port         a server port
+     * @param topology     a cluster topology
+     * @param dao          a data storage
+     * @param workersCount a number of worker threads
+     * @return a server instance
+     * @throws IOException if an IO error occurred
+     */
     @NotNull
     public static Service create(
             final int port,
