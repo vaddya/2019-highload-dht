@@ -44,8 +44,8 @@ final class MemTablePool implements Table, Closeable {
         this.stopped = new AtomicBoolean();
     }
 
-    @NotNull
     @Override
+    @NotNull
     public Iterator<TableEntry> iterator(@NotNull final ByteBuffer from) {
         Collection<Iterator<TableEntry>> iterators;
         lock.readLock().lock();
