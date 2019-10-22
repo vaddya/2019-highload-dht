@@ -22,8 +22,8 @@ public class BasicTopology<T> implements Topology<T> {
                 .collect(toList());
     }
 
-    @NotNull
     @Override
+    @NotNull
     public T primaryFor(@NotNull final ByteBuffer key) {
         final int hash = key.hashCode();
         final int index = (hash & Integer.MAX_VALUE) % nodes.size();
@@ -35,8 +35,8 @@ public class BasicTopology<T> implements Topology<T> {
         return me.equals(node);
     }
 
-    @NotNull
     @Override
+    @NotNull
     public Set<T> all() {
         return new HashSet<>(nodes);
     }

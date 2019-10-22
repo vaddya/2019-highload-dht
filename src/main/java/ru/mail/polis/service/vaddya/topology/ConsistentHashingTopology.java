@@ -26,8 +26,8 @@ class ConsistentHashingTopology<T> implements Topology<T> {
         topology.forEach(node -> addNode(node, vNodeCount));
     }
 
-    @NotNull
     @Override
+    @NotNull
     public T primaryFor(@NotNull final ByteBuffer key) {
         final var hash = hashFunction.hashBytes(key.duplicate()).asLong();
         final var nodeEntry = ring.ceilingEntry(hash);
@@ -42,8 +42,8 @@ class ConsistentHashingTopology<T> implements Topology<T> {
         return me.equals(node);
     }
 
-    @NotNull
     @Override
+    @NotNull
     public Set<T> all() {
         return topology;
     }

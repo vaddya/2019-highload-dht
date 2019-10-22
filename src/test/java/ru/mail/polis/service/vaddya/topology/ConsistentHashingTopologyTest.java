@@ -17,8 +17,6 @@ class ConsistentHashingTopologyTest {
     private static final int VNODE_COUNT = 100;
     private static final int KEYS_COUNT = 10_000_000;
 
-    private final Map<String, Integer> counters = new HashMap<>();
-
     @Test
     void testConsistency() {
         final Topology<String> topology1 = createTopology();
@@ -35,6 +33,7 @@ class ConsistentHashingTopologyTest {
     @Test
     void testUniformDistribution() {
         final Topology<String> topology = createTopology();
+        final Map<String, Integer> counters = new HashMap<>();
         for (long i = 0; i < KEYS_COUNT; i++) {
             final String key = "key" + i;
             final String node = topology.primaryFor(ByteBuffer.wrap(key.getBytes(Charsets.UTF_8)));

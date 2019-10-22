@@ -19,7 +19,10 @@ public interface Topology<T> {
      * @param me       current node
      * @return a topology instance
      */
-    static <T> Topology<T> basic(Set<T> topology, T me) {
+    @NotNull
+    static <T> Topology<T> basic(
+            @NotNull final Set<T> topology,
+            @NotNull final T me) {
         return new BasicTopology<>(topology, me);
     }
 
@@ -32,7 +35,11 @@ public interface Topology<T> {
      * @param vNodeCount a number of virtual nodes per one physical node
      * @return a topology instance
      */
-    static <T> Topology<T> consistentHashing(Set<T> topology, T me, int vNodeCount) {
+    @NotNull
+    static <T> Topology<T> consistentHashing(
+            @NotNull final Set<T> topology,
+            @NotNull final T me,
+            final int vNodeCount) {
         return new ConsistentHashingTopology<>(topology, me, vNodeCount);
     }
 
@@ -66,6 +73,7 @@ public interface Topology<T> {
      *
      * @return all nodes except me
      */
+    @NotNull
     default Set<T> others() {
         return all().stream()
                 .filter(t -> !isMe(t))
