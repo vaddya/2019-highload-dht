@@ -134,7 +134,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 asyncExecute(session, () -> deleteEntity(key));
                 break;
             default:
-                log.warn("Not supported HTTP-method: " + request.getMethod());
+                log.warn("Not supported HTTP-method: {}", request.getMethod());
                 sendEmptyResponse(session, Response.METHOD_NOT_ALLOWED);
                 break;
         }

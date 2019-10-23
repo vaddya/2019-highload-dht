@@ -21,6 +21,10 @@ class ConsistentHashingTopology<T> implements Topology<T> {
             @NotNull final Set<T> topology,
             @NotNull final T me,
             final int vNodeCount) {
+        if (topology.isEmpty()) {
+            throw new IllegalArgumentException("Topology should not be empty");
+        }
+        
         this.topology = topology;
         this.me = me;
         topology.forEach(node -> addNode(node, vNodeCount));
