@@ -49,8 +49,7 @@ class ConsistentHashingTopologyTest {
                     final String node = e.getKey();
                     final int counter = e.getValue();
                     final int delta = Math.abs(EXPECTED_KEYS_PER_NODE - counter);
-                    assertTrue(delta < KEYS_DELTA,
-                            "Node keys counter is out of range on node " + node + ", delta = " + delta);
+                    assertTrue(delta < KEYS_DELTA,"Node keys counter is out of range on node " + node + ", delta = " + delta);
                 });
     }
 
