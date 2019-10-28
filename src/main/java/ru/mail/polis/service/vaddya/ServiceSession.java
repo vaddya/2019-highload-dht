@@ -64,7 +64,9 @@ final class ServiceSession extends HttpSession {
     protected void processWrite() throws Exception {
         super.processWrite();
 
-        next();
+        if (records != null) {
+            next();
+        }
     }
 
     private void next() throws IOException {
@@ -74,6 +76,7 @@ final class ServiceSession extends HttpSession {
         }
 
         if (!records.hasNext()) {
+            records = null;
             write(EMPTY_CHUNK, 0, EMPTY_CHUNK.length);
             server.incRequestsProcessed();
             tryExtractNextRequest();
