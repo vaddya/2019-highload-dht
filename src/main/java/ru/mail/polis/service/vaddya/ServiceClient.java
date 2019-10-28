@@ -12,7 +12,7 @@ import one.nio.net.ConnectionString;
 import static ru.mail.polis.service.vaddya.ResponseUtils.HEADER_PROXY;
 
 final class ServiceClient {
-    private static final String PATH_ENTITY = "/v0/entity?id=";
+    private static final String PATH_ENTITY = "/v0/entity";
 
     private final HttpClient client;
     private final ExecutorService executor;
@@ -25,16 +25,16 @@ final class ServiceClient {
     }
 
     Future<Response> get(@NotNull final String id) {
-        return executor.submit(() -> client.get(PATH_ENTITY + id, HEADER_PROXY));
+        return executor.submit(() -> client.get(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
     }
 
     Future<Response> put(
             @NotNull final String id,
             @NotNull final byte[] data) {
-        return executor.submit(() -> client.put(PATH_ENTITY + id, data, HEADER_PROXY));
+        return executor.submit(() -> client.put(PATH_ENTITY + "?id=" + id, data, HEADER_PROXY));
     }
 
     Future<Response> delete(@NotNull final String id) {
-        return executor.submit(() -> client.delete(PATH_ENTITY + id, HEADER_PROXY));
+        return executor.submit(() -> client.delete(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
     }
 }
