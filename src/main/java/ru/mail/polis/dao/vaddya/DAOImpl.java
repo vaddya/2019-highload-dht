@@ -73,9 +73,9 @@ public class DAOImpl implements DAO {
                 final var table = parseTable(path);
                 this.ssTables.put(generation, table);
             } catch (IllegalArgumentException e) {
-                log.error("Unable to parse generation from file {}", name, e);
+                log.error("Unable to parse generation from file {}: {}", name, e.getMessage());
             } catch (IOException e) {
-                log.error("Unable to read table from file {}", name, e);
+                log.error("Unable to read table from file {}: {}", name, e.getMessage());
             }
         }
 
@@ -239,7 +239,7 @@ public class DAOImpl implements DAO {
 
             log.debug("Table {} was flushed to the disk into {}", generation, path);
         } catch (IOException e) {
-            log.error("Flushing error", e);
+            log.error("Flushing error: {}", e.getMessage());
         }
     }
 

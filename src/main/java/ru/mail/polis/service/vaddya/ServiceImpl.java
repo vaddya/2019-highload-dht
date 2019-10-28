@@ -206,11 +206,13 @@ public final class ServiceImpl extends HttpServer implements Service {
                 .collect(toList());
 
         asyncExecute(() -> {
+            log.debug("Gathering get responses: port={}, hash(id)={}", port, key.hashCode());
             final var values = ResponseUtils.extract(futures)
                     .stream()
                     .map(ResponseUtils::responseToValue)
                     .collect(toList());
             if (values.size() < rf.ack()) {
+                log.debug("Not enough replicas for get request: port={}, hash(id)={}", port, key.hashCode());
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
                 return;
             }
@@ -220,6 +222,7 @@ public final class ServiceImpl extends HttpServer implements Service {
 
     @NotNull
     private Response getEntityLocal(@NotNull final ByteBuffer key) {
+        log.debug("Get local entity: port={}, hash(id)={}", port, key.hashCode());
         try {
             final var entry = dao.getEntry(key);
             final var value = Value.fromEntry(entry);
@@ -254,8 +257,10 @@ public final class ServiceImpl extends HttpServer implements Service {
                 .collect(toList());
 
         asyncExecute(() -> {
+            log.debug("Gathering put responses: port={}, hash(id)={}", port, key.hashCode());
             final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
+                log.debug("Not enough replicas for put request: port={}, hash(id)={}", port, key.hashCode());
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
                 return;
             }
@@ -268,6 +273,7 @@ public final class ServiceImpl extends HttpServer implements Service {
     private Response putEntityLocal(
             @NotNull final ByteBuffer key,
             @NotNull final byte[] bytes) {
+        log.debug("Put local entity: port={}, hash(id)={}", port, key.hashCode());
         final var body = ByteBuffer.wrap(bytes);
         dao.upsert(key, body);
         return emptyResponse(Response.CREATED);
@@ -290,8 +296,10 @@ public final class ServiceImpl extends HttpServer implements Service {
                 .collect(toList());
 
         asyncExecute(() -> {
+            log.debug("Gathering delete responses: port={}, hash(id)={}", port, key.hashCode());
             final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
+                log.debug("Not enough replicas for delete request: port={}, hash(id)={}", port, key.hashCode());
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
                 return;
             }
@@ -301,6 +309,7 @@ public final class ServiceImpl extends HttpServer implements Service {
 
     @NotNull
     private Response deleteEntityLocal(@NotNull final ByteBuffer key) {
+        log.debug("Delete local entity: port={}, hash(id)={}", port, key.hashCode());
         dao.remove(key);
         return emptyResponse(Response.ACCEPTED);
     }
