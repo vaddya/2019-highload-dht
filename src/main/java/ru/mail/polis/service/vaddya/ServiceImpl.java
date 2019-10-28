@@ -43,7 +43,7 @@ public final class ServiceImpl extends HttpServer implements Service {
     private final Topology<String> topology;
     private final ReplicationFactor quorum;
     private final Map<String, ServiceClient> clients;
-    private final ExecutorService ioThreadPool = Executors.newFixedThreadPool(4);
+    private final ExecutorService ioThreadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() / 2);
 
     /**
      * Create a {@link HttpServer} instance that implements {@link Service}.
@@ -340,7 +340,7 @@ public final class ServiceImpl extends HttpServer implements Service {
     @NotNull
     private Future<Response> submit(@NotNull final Supplier<Response> supplier) {
         log.debug("Local task submitted: port={}", port);
-        return ioThreadPool.submit(supplier::get);
+        return ((ExecutorService) workers).submit(supplier::get);
     }
 
     @NotNull
