@@ -207,7 +207,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
-        log.debug("Scheduling get entity: rf={}, id={}", proxied ? "local" : rf, key.hashCode());
+        log.debug("Scheduling get entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
 //            asyncExecute(() -> session.send(getEntityLocal(key.duplicate())));
             session.send(getEntityLocal(key.duplicate()));
@@ -261,7 +261,7 @@ public final class ServiceImpl extends HttpServer implements Service {
         }
 
         final var key = wrapString(id);
-        log.debug("Scheduling put entity: rf={}, id={}", proxied ? "local" : rf, key.hashCode());
+        log.debug("Scheduling put entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
 //            asyncExecute(() -> session.send(putEntityLocal(key.duplicate(), bytes)));
             session.send(putEntityLocal(key.duplicate(), bytes));
@@ -304,7 +304,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
-        log.debug("Scheduling delete entity: rf={}, id={}", proxied ? "local" : rf, key.hashCode());
+        log.debug("Scheduling delete entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
 //            asyncExecute(() -> session.send(deleteEntityLocal(key.duplicate())));
             session.send(deleteEntityLocal(key.duplicate()));
