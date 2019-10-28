@@ -207,16 +207,16 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
-        log.debug("Scheduling get entity: rf={}, id={}", proxied ? "local" : rf, id.hashCode());
+        log.debug("Scheduling get entity: rf={}, id={}", proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-            asyncExecute(() -> session.send(getEntityLocal(key)));
+            asyncExecute(() -> session.send(getEntityLocal(key.duplicate())));
             return;
         }
 
         final var futures = topology.primaryFor(key, rf)
                 .stream()
                 .map(node -> topology.isMe(node)
-                        ? submit(() -> getEntityLocal(key))
+                        ? submit(() -> getEntityLocal(key.duplicate()))
                         : clients.get(node).get(id))
                 .collect(toList());
 
@@ -260,16 +260,16 @@ public final class ServiceImpl extends HttpServer implements Service {
         }
 
         final var key = wrapString(id);
-        log.debug("Scheduling put entity: rf={}, id={}", proxied ? "local" : rf, id.hashCode());
+        log.debug("Scheduling put entity: rf={}, id={}", proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-            asyncExecute(() -> session.send(putEntityLocal(key, bytes)));
+            asyncExecute(() -> session.send(putEntityLocal(key.duplicate(), bytes)));
             return;
         }
 
         final var futures = topology.primaryFor(key, rf)
                 .stream()
                 .map(node -> topology.isMe(node)
-                        ? submit(() -> putEntityLocal(key, bytes))
+                        ? submit(() -> putEntityLocal(key.duplicate(), bytes))
                         : clients.get(node).put(id, bytes))
                 .collect(toList());
 
@@ -303,16 +303,16 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
-        log.debug("Scheduling delete entity: rf={}, id={}", proxied ? "local" : rf, id.hashCode());
+        log.debug("Scheduling delete entity: rf={}, id={}", proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-            asyncExecute(() -> session.send(deleteEntityLocal(key)));
+            asyncExecute(() -> session.send(deleteEntityLocal(key.duplicate())));
             return;
         }
 
         final var futures = topology.primaryFor(key, rf)
                 .stream()
                 .map(node -> topology.isMe(node)
-                        ? submit(() -> deleteEntityLocal(key))
+                        ? submit(() -> deleteEntityLocal(key.duplicate()))
                         : clients.get(node).delete(id))
                 .collect(toList());
 
