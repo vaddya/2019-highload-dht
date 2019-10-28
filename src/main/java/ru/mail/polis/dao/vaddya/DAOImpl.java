@@ -21,6 +21,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import com.google.common.collect.Iterators;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
@@ -92,6 +93,13 @@ public class DAOImpl implements DAO {
         return Iterators.transform(alive, e -> Record.of(e.getKey(), e.getValue()));
     }
 
+    /**
+     * Get an entry iterator.
+     * Returning value by iterator could be a tombstone.
+     *
+     * @param from starting key to search for
+     * @return an iterator
+     */
     @NotNull
     public Iterator<TableEntry> entryIterator(@NotNull final ByteBuffer from) {
         final Collection<Iterator<TableEntry>> iterators;
@@ -120,8 +128,15 @@ public class DAOImpl implements DAO {
         return next.getValue();
     }
 
-
-    public TableEntry getEntry(ByteBuffer key) {
+    /**
+     * Get an entry for a given key.
+     * Value could be a tombstone.
+     *
+     * @param key key to search for
+     * @return value of {@code null}
+     */
+    @Nullable
+    public TableEntry getEntry(@NotNull final ByteBuffer key) {
         final var it = entryIterator(key);
         if (!it.hasNext()) {
             return null;

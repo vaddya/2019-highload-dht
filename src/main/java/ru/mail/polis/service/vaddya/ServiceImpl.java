@@ -2,17 +2,12 @@ package ru.mail.polis.service.vaddya;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -40,7 +35,7 @@ import static java.util.stream.Collectors.toMap;
 import static ru.mail.polis.service.vaddya.ByteBufferUtils.wrapString;
 import static ru.mail.polis.service.vaddya.ResponseUtils.emptyResponse;
 
-public class ServiceImpl extends HttpServer implements Service {
+public final class ServiceImpl extends HttpServer implements Service {
     private static final Logger log = LoggerFactory.getLogger(ServiceImpl.class);
     private static final String RESPONSE_NOT_ENOUGH_REPLICAS = "504 Not Enough Replicas";
 
@@ -218,10 +213,10 @@ public class ServiceImpl extends HttpServer implements Service {
 
         asyncExecute(() -> {
             final var values = futures.stream()
-                    .map(this::extractFuture)
+                    .map(ResponseUtils::extractFuture)
                     .filter(Objects::nonNull)
                     .map(ResponseUtils::responseToValue)
-                    .collect(Collectors.toList());
+                    .collect(toList());
             if (values.size() < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
                 return;
@@ -266,7 +261,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 .collect(toList());
 
         asyncExecute(() -> {
-            final var responses = extract(futures);
+            final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
                 return;
@@ -304,7 +299,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 .collect(toList());
 
         asyncExecute(() -> {
-            final var responses = extract(futures);
+            final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
                 return;
@@ -317,24 +312,6 @@ public class ServiceImpl extends HttpServer implements Service {
     private Response deleteEntityLocal(@NotNull final ByteBuffer key) {
         dao.remove(key);
         return emptyResponse(Response.ACCEPTED);
-    }
-
-    @NotNull
-    private Collection<Response> extract(@NotNull final Collection<Future<Response>> futures) {
-        return futures.stream()
-                .map(this::extractFuture)
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-    }
-
-    @Nullable
-    private Response extractFuture(@NotNull final Future<Response> future) {
-        try {
-            return future.get(1, TimeUnit.SECONDS);
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
-            log.debug("Unable to get response from remote node: {}", e.getMessage());
-            return null;
-        }
     }
 
     @NotNull

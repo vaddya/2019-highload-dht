@@ -1,11 +1,24 @@
 package ru.mail.polis.service.vaddya;
 
+import java.util.Collection;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import one.nio.http.Request;
 import one.nio.http.Response;
 
+import static java.util.stream.Collectors.toList;
+
 final class ResponseUtils {
+    private final static Logger log = LoggerFactory.getLogger(ResponseUtils.class);
     static final String HEADER_PROXY = "X-OK-Proxy: True";
     private static final String HEADER_TIMESTAMP = "X-OK-Timestamp: ";
 
@@ -49,5 +62,23 @@ final class ResponseUtils {
     @NotNull
     static Response emptyResponse(@NotNull final String code) {
         return new Response(code, Response.EMPTY);
+    }
+
+    @NotNull
+    static Collection<Response> extract(@NotNull final Collection<Future<Response>> futures) {
+        return futures.stream()
+                .map(ResponseUtils::extractFuture)
+                .filter(Objects::nonNull)
+                .collect(toList());
+    }
+
+    @Nullable
+    static Response extractFuture(@NotNull final Future<Response> future) {
+        try {
+            return future.get(1, TimeUnit.SECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            log.debug("Unable to get response from remote node: {}", e.getMessage());
+            return null;
+        }
     }
 }

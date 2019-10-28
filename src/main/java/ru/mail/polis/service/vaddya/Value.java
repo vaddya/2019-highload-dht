@@ -43,7 +43,10 @@ final class Value {
                 .orElseGet(Value::absent);
     }
 
-    private Value(byte[] data, long ts, State state) {
+    private Value(
+            @Nullable final byte[] data,
+            final long ts,
+            @NotNull State state) {
         this.data = data;
         this.ts = ts;
         this.state = state;

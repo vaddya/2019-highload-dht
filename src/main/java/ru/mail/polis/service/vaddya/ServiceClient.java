@@ -17,7 +17,9 @@ final class ServiceClient {
     private final HttpClient client;
     private final ExecutorService executor;
 
-    ServiceClient(ConnectionString conn, ExecutorService executor) {
+    ServiceClient(
+            @NotNull final ConnectionString conn,
+            @NotNull final ExecutorService executor) {
         this.client = new HttpClient(conn);
         this.executor = executor;
     }
