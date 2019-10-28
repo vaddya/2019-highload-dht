@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import static ru.mail.polis.service.vaddya.ResponseUtils.HEADER_PROXY;
 
 final class ServiceClient extends HttpClient {
+    private static final long serialVersionUID = -4873134095723122623L;
     private static final Logger log = LoggerFactory.getLogger(ServiceClient.class);
     private static final String PATH_ENTITY = "/v0/entity";
 
