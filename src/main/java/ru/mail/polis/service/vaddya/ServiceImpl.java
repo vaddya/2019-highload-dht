@@ -341,6 +341,6 @@ public final class ServiceImpl extends HttpServer implements Service {
 
     @NotNull
     private ServiceClient createHttpClient(@NotNull final String node) {
-        return new ServiceClient(new ConnectionString(node + "?timeout=1000"), ioThreadPool);
+        return new ServiceClient(new ConnectionString(node + "?timeout=100"), ioThreadPool);
     }
 }
