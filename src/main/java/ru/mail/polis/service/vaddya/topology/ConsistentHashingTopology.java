@@ -75,6 +75,11 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
         return nodes;
     }
 
+    @Override
+    public int size() {
+        return nodes.size();
+    }
+
     private void addNode(
             @NotNull final T node,
             final int vNodeCount) {

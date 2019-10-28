@@ -78,6 +78,13 @@ public interface Topology<T> {
     Set<T> all();
 
     /**
+     * Get size of the cluster.
+     *
+     * @return cluster size
+     */
+    int size();
+
+    /**
      * Get all nodes of the cluster except me.
      *
      * @return all nodes except me

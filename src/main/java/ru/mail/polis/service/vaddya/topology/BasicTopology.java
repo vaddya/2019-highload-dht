@@ -62,4 +62,9 @@ final class BasicTopology<T> implements Topology<T> {
     public Set<T> all() {
         return new HashSet<>(nodes);
     }
+
+    @Override
+    public int size() {
+        return nodes.size();
+    }
 }

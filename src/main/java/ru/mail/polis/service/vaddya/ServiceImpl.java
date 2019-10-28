@@ -79,12 +79,12 @@ public final class ServiceImpl extends HttpServer implements Service {
         super(config);
 
         this.topology = topology;
-        this.quorum = ReplicationFactor.quorum(topology.all().size());
+        this.quorum = ReplicationFactor.quorum(topology.size());
         this.dao = (DAOImpl) dao;
+        this.ioThreadPool = Executors.newFixedThreadPool(topology.size());
         this.clients = topology.others()
                 .stream()
                 .collect(toMap(node -> node, this::createHttpClient));
-        this.ioThreadPool = Executors.newFixedThreadPool(clients.size());
     }
 
     @Override
