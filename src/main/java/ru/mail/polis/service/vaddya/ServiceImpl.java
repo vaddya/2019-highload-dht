@@ -276,13 +276,13 @@ public final class ServiceImpl extends HttpServer implements Service {
 
         asyncExecute(() -> {
             log.debug("Gathering put responses: port={}, id={}", port, key.hashCode());
-            if (ResponseUtils.extract(futures).size() < rf.ack()) {
-                session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
-                log.debug("Not enough replicas for put request: port={}, id={}", port, key.hashCode());
+            if (ResponseUtils.extract(futures).size() >= rf.ack()) {
+                session.sendEmptyResponse(Response.CREATED);
+                log.debug("Put created: port={}, id={}", port, key.hashCode());
                 return;
             }
-            session.sendEmptyResponse(Response.CREATED);
-            log.debug("Put created: port={}, id={}", port, key.hashCode());
+            session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
+            log.debug("Not enough replicas for put request: port={}, id={}", port, key.hashCode());
         });
     }
 

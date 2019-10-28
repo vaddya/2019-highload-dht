@@ -53,7 +53,7 @@ checks:
       threshold: 60 # Sometimes it is not so similar
   identical-code:
     config:
-      threshold: 70 # Nope, not a duplicate
+      threshold: 60 # Nope, not a duplicate
   return-statements:
     config:
       threshold: 10 # Have pattern-matching-like code
