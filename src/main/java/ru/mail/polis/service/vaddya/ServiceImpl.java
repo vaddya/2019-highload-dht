@@ -135,7 +135,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
         }
-        
+
         final var proxied = ResponseUtils.isProxied(request);
         switch (request.getMethod()) {
             case Request.METHOD_GET:
@@ -309,7 +309,6 @@ public final class ServiceImpl extends HttpServer implements Service {
     private Future<Response> submit(@NotNull final Supplier<Response> supplier) {
         return ((ExecutorService) workers).submit(supplier::get);
     }
-
 
     @NotNull
     private ServiceClient createHttpClient(@NotNull final String node) {
