@@ -23,6 +23,11 @@ final class ServiceSession extends HttpSession {
 
     private Iterator<Record> records;
 
+    @NotNull
+    static ServiceSession wrap(@NotNull final HttpSession httpSession) {
+        return (ServiceSession) httpSession;
+    }
+
     ServiceSession(
             @NotNull final Socket socket,
             @NotNull final HttpServer server) {

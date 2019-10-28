@@ -43,7 +43,7 @@ public final class ServiceImpl extends HttpServer implements Service {
     private final Topology<String> topology;
     private final ReplicationFactor quorum;
     private final Map<String, ServiceClient> clients;
-    private final ExecutorService ioThreadPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() / 2);
+    private final ExecutorService ioThreadPool;
 
     /**
      * Create a {@link HttpServer} instance that implements {@link Service}.
@@ -69,8 +69,6 @@ public final class ServiceImpl extends HttpServer implements Service {
         config.minWorkers = workersCount;
         config.maxWorkers = workersCount;
 
-        log.debug("Workers count: {}", workersCount);
-
         return new ServiceImpl(config, topology, dao);
     }
 
@@ -86,6 +84,7 @@ public final class ServiceImpl extends HttpServer implements Service {
         this.clients = topology.others()
                 .stream()
                 .collect(toMap(node -> node, this::createHttpClient));
+        this.ioThreadPool = Executors.newFixedThreadPool(config.minWorkers);
     }
 
     @Override
@@ -97,7 +96,7 @@ public final class ServiceImpl extends HttpServer implements Service {
     public void handleDefault(
             @NotNull final Request request,
             @NotNull final HttpSession httpSession) {
-        ((ServiceSession) httpSession).sendEmptyResponse(Response.BAD_REQUEST);
+        ServiceSession.wrap(httpSession).sendEmptyResponse(Response.BAD_REQUEST);
     }
 
     @Override
@@ -119,7 +118,7 @@ public final class ServiceImpl extends HttpServer implements Service {
      */
     @Path("/v0/status")
     public void status(@NotNull final HttpSession httpSession) {
-        ((ServiceSession) httpSession).sendEmptyResponse(Response.OK);
+        ServiceSession.wrap(httpSession).sendEmptyResponse(Response.OK);
     }
 
     /**
@@ -137,7 +136,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @Param("replicas") final String replicas,
             @NotNull final Request request,
             @NotNull final HttpSession httpSession) {
-        final var session = (ServiceSession) httpSession;
+        final var session = ServiceSession.wrap(httpSession);
         if (id == null || id.isEmpty()) {
             session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
@@ -185,7 +184,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @Param("end") final String end,
             @NotNull final Request request,
             @NotNull final HttpSession httpSession) {
-        final var session = (ServiceSession) httpSession;
+        final var session = ServiceSession.wrap(httpSession);
         if (start == null || start.isEmpty()) {
             session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
@@ -211,7 +210,6 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
-        log.debug("Scheduling get entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(getEntityLocal(key)));
             return;
@@ -264,7 +262,6 @@ public final class ServiceImpl extends HttpServer implements Service {
         }
 
         final var key = wrapString(id);
-        log.debug("Scheduling put entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(putEntityLocal(key, bytes)));
             return;
@@ -279,8 +276,7 @@ public final class ServiceImpl extends HttpServer implements Service {
 
         asyncExecute(() -> {
             log.debug("Gathering put responses: port={}, id={}", port, key.hashCode());
-            final var responses = ResponseUtils.extract(futures);
-            if (responses.size() < rf.ack()) {
+            if (ResponseUtils.extract(futures).size() < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
                 log.debug("Not enough replicas for put request: port={}, id={}", port, key.hashCode());
                 return;
@@ -306,7 +302,6 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
-        log.debug("Scheduling delete entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(deleteEntityLocal(key)));
             return;
@@ -321,8 +316,7 @@ public final class ServiceImpl extends HttpServer implements Service {
 
         asyncExecute(() -> {
             log.debug("Gathering delete responses: port={}, id={}", port, key.hashCode());
-            final var responses = ResponseUtils.extract(futures);
-            if (responses.size() < rf.ack()) {
+            if (ResponseUtils.extract(futures).size() < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
                 log.debug("Not enough replicas for delete request: port={}, id={}", port, key.hashCode());
                 return;
