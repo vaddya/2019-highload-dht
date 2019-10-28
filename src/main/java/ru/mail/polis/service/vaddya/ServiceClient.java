@@ -1,5 +1,6 @@
 package ru.mail.polis.service.vaddya;
 
+import java.nio.ByteBuffer;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 
@@ -28,19 +29,23 @@ final class ServiceClient extends HttpClient {
     }
 
     Future<Response> get(@NotNull final String id) {
-        log.debug("Get remote entity: port={}, id={}", port, id);
+        log.debug("Get remote entity: port={}, id={}", port, hash(id));
         return executor.submit(() -> get(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
     }
 
     Future<Response> put(
             @NotNull final String id,
             @NotNull final byte[] data) {
-        log.debug("Put remote entity: port={}, id={}", port, id);
+        log.debug("Put remote entity: port={}, id={}", port, hash(id));
         return executor.submit(() -> put(PATH_ENTITY + "?id=" + id, data, HEADER_PROXY));
     }
 
     Future<Response> delete(@NotNull final String id) {
-        log.debug("Delete remote entity: port={}, id={}", port, id);
+        log.debug("Delete remote entity: port={}, id={}", port, hash(id));
         return executor.submit(() -> delete(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
+    }
+
+    private static int hash(@NotNull final String id) {
+        return ByteBufferUtils.wrapString(id).hashCode();
     }
 }

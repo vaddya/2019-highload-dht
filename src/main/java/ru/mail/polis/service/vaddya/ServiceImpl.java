@@ -207,6 +207,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
+        log.debug("Scheduling get entity: rf={}, hash(id)={}", rf, id.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(getEntityLocal(key)));
             return;
@@ -256,6 +257,7 @@ public final class ServiceImpl extends HttpServer implements Service {
         }
 
         final var key = wrapString(id);
+        log.debug("Scheduling put entity: rf={}, hash(id)={}", rf, id.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(putEntityLocal(key, bytes)));
             return;
@@ -297,6 +299,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
+        log.debug("Scheduling delete entity: rf={}, hash(id)={}", rf, id.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(deleteEntityLocal(key)));
             return;
