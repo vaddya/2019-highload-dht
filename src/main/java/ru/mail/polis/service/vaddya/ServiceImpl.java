@@ -163,13 +163,14 @@ public final class ServiceImpl extends HttpServer implements Service {
      * @param httpSession HTTP session
      */
     @Path("/v0/entities")
+    @SuppressWarnings("OperatorPrecedence")
     public void entities(
             @Param("start") final String start,
             @Param("end") final String end,
             @NotNull final Request request,
             @NotNull final HttpSession httpSession) {
         final var session = (ServiceSession) httpSession;
-        if (start == null || start.isEmpty() || (end != null && end.isEmpty())) {
+        if (start == null || start.isEmpty()) {
             session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
         }

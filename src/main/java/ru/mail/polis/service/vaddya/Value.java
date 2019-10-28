@@ -10,6 +10,7 @@ import ru.mail.polis.dao.vaddya.TableEntry;
 final class Value {
     private static final Value ABSENT = new Value(null, -1, State.ABSENT);
 
+    @Nullable
     private final byte[] data;
     private final long ts;
     private final State state;
@@ -48,14 +49,14 @@ final class Value {
     private Value(
             @Nullable final byte[] data,
             final long ts,
-            @NotNull State state) {
+            @NotNull final State state) {
         this.data = data == null ? null : data.clone();
         this.ts = ts;
         this.state = state;
     }
 
     public byte[] data() {
-        return data;
+        return data == null ? null : data.clone();
     }
 
     long ts() {

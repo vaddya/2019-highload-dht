@@ -50,7 +50,9 @@ public final class ReplicationFactor {
         return new ReplicationFactor(ackCount, nodeCount);
     }
 
-    private ReplicationFactor(int ack, int from) {
+    private ReplicationFactor(
+            final int ack,
+            final int from) {
         if (ack > from || ack <= 0) {
             throw new IllegalArgumentException("Wrong RF");
         }
