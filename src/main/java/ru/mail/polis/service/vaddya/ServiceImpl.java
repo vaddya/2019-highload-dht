@@ -84,7 +84,7 @@ public final class ServiceImpl extends HttpServer implements Service {
         this.clients = topology.others()
                 .stream()
                 .collect(toMap(node -> node, this::createHttpClient));
-        this.ioThreadPool = Executors.newFixedThreadPool(config.minWorkers + 1);
+        this.ioThreadPool = Executors.newFixedThreadPool(clients.size());
     }
 
     @Override
