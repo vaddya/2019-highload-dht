@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
@@ -44,6 +45,7 @@ public final class ServiceImpl extends HttpServer implements Service {
     private final Topology<String> topology;
     private final ReplicationFactor quorum;
     private final Map<String, ServiceClient> clients;
+    private final ExecutorService ioThreadPool = Executors.newFixedThreadPool(4);
 
     /**
      * Create a {@link HttpServer} instance that implements {@link Service}.
@@ -341,11 +343,11 @@ public final class ServiceImpl extends HttpServer implements Service {
     @NotNull
     private Future<Response> submit(@NotNull final Supplier<Response> supplier) {
         log.debug("Local task submitted: port={}", port);
-        return ((ExecutorService) workers).submit(supplier::get);
+        return ioThreadPool.submit(supplier::get);
     }
 
     @NotNull
     private ServiceClient createHttpClient(@NotNull final String node) {
-        return new ServiceClient(new ConnectionString(node + "?timeout=1000"), workers);
+        return new ServiceClient(new ConnectionString(node + "?timeout=1000"), ioThreadPool);
     }
 }
