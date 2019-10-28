@@ -31,42 +31,42 @@ final class ServiceClient extends HttpClient {
         this.executor = executor;
     }
 
-//    Future<Response> get(@NotNull final String id) {
-    Response get(@NotNull final String id) {
+    Future<Response> get(@NotNull final String id) {
+//    Response get(@NotNull final String id) {
         log.debug("Get remote entity: toPort={}, id={}", port, hash(id));
-//        return executor.submit(() -> get(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
-        try {
-            return get(PATH_ENTITY + "?id=" + id, HEADER_PROXY);
-        } catch (InterruptedException | PoolException | IOException | HttpException e) {
-            log.debug(e.getMessage());
-            return null;
-        }
+        return executor.submit(() -> get(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
+//        try {
+//            return get(PATH_ENTITY + "?id=" + id, HEADER_PROXY);
+//        } catch (InterruptedException | PoolException | IOException | HttpException e) {
+//            log.debug(e.getMessage());
+//            return null;
+//        }
     }
 
-//    Future<Response> put(
-    Response put(
+    Future<Response> put(
+//    Response put(
             @NotNull final String id,
             @NotNull final byte[] data) {
         log.debug("Put remote entity: toPort={}, id={}", port, hash(id));
-//        return executor.submit(() -> put(PATH_ENTITY + "?id=" + id, data, HEADER_PROXY));
-        try {
-            return put(PATH_ENTITY + "?id=" + id, data, HEADER_PROXY);
-        } catch (InterruptedException | PoolException | IOException | HttpException e) {
-            log.debug(e.getMessage());
-            return null;
-        }
+        return executor.submit(() -> put(PATH_ENTITY + "?id=" + id, data, HEADER_PROXY));
+//        try {
+//            return put(PATH_ENTITY + "?id=" + id, data, HEADER_PROXY);
+//        } catch (InterruptedException | PoolException | IOException | HttpException e) {
+//            log.debug(e.getMessage());
+//            return null;
+//        }
     }
 
-//    Future<Response> delete(@NotNull final String id) {
-    Response delete(@NotNull final String id) {
+    Future<Response> delete(@NotNull final String id) {
+//    Response delete(@NotNull final String id) {
         log.debug("Delete remote entity: toPort={}, id={}", port, hash(id));
-//        return executor.submit(() -> delete(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
-        try {
-            return delete(PATH_ENTITY + "?id=" + id, HEADER_PROXY);
-        } catch (InterruptedException | PoolException | IOException | HttpException e) {
-            log.debug(e.getMessage());
-            return null;
-        }
+        return executor.submit(() -> delete(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
+//        try {
+//            return delete(PATH_ENTITY + "?id=" + id, HEADER_PROXY);
+//        } catch (InterruptedException | PoolException | IOException | HttpException e) {
+//            log.debug(e.getMessage());
+//            return null;
+//        }
     }
 
     private static int hash(@NotNull final String id) {

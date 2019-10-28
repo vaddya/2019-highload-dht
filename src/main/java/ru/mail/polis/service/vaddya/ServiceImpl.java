@@ -34,6 +34,7 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static ru.mail.polis.service.vaddya.ByteBufferUtils.wrapString;
 import static ru.mail.polis.service.vaddya.ResponseUtils.emptyResponse;
+import static ru.mail.polis.service.vaddya.ResponseUtils.extractFuture;
 
 public final class ServiceImpl extends HttpServer implements Service {
     private static final Logger log = LoggerFactory.getLogger(ServiceImpl.class);
@@ -218,7 +219,7 @@ public final class ServiceImpl extends HttpServer implements Service {
                 .stream()
                 .map(node -> topology.isMe(node)
                         ? getEntityLocal(key.duplicate())
-                        : clients.get(node).get(id))
+                        : extractFuture(clients.get(node).get(id)))
                 .filter(Objects::nonNull)
                 .collect(toList());
 
@@ -273,7 +274,7 @@ public final class ServiceImpl extends HttpServer implements Service {
                 .stream()
                 .map(node -> topology.isMe(node)
                         ? putEntityLocal(key.duplicate(), bytes)
-                        : clients.get(node).put(id, bytes))
+                        : extractFuture(clients.get(node).put(id, bytes)))
                 .filter(Objects::nonNull)
                 .collect(toList());
 
@@ -316,7 +317,7 @@ public final class ServiceImpl extends HttpServer implements Service {
                 .stream()
                 .map(node -> topology.isMe(node)
                         ? deleteEntityLocal(key.duplicate())
-                        : clients.get(node).delete(id))
+                        : extractFuture(clients.get(node).delete(id)))
                 .filter(Objects::nonNull)
                 .collect(toList());
 
