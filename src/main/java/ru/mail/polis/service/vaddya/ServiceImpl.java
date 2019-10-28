@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -35,7 +34,6 @@ import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static ru.mail.polis.service.vaddya.ByteBufferUtils.wrapString;
 import static ru.mail.polis.service.vaddya.ResponseUtils.emptyResponse;
-import static ru.mail.polis.service.vaddya.ResponseUtils.extractFuture;
 
 public final class ServiceImpl extends HttpServer implements Service {
     private static final Logger log = LoggerFactory.getLogger(ServiceImpl.class);
@@ -224,7 +222,7 @@ public final class ServiceImpl extends HttpServer implements Service {
                         : clients.get(node).get(id))
                 .collect(toList());
 
-//        asyncExecute(() -> {
+        asyncExecute(() -> {
             log.debug("Gathering get responses: port={}, id={}", port, key.hashCode());
             final var values = ResponseUtils.extract(futures)
                     .stream()
@@ -237,7 +235,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             }
             session.send(Value.mergeValues(values));
             log.debug("Get returned: port={}, id={}", port, key.hashCode());
-//        });
+        });
     }
 
     @NotNull
@@ -277,7 +275,7 @@ public final class ServiceImpl extends HttpServer implements Service {
                         : clients.get(node).put(id, bytes))
                 .collect(toList());
 
-//        asyncExecute(() -> {
+        asyncExecute(() -> {
             log.debug("Gathering put responses: port={}, id={}", port, key.hashCode());
             final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
@@ -287,7 +285,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             }
             session.sendEmptyResponse(Response.CREATED);
             log.debug("Put created: port={}, id={}", port, key.hashCode());
-//        });
+        });
     }
 
     @NotNull
@@ -319,7 +317,7 @@ public final class ServiceImpl extends HttpServer implements Service {
                         : clients.get(node).delete(id))
                 .collect(toList());
 
-//        asyncExecute(() -> {
+        asyncExecute(() -> {
             log.debug("Gathering delete responses: port={}, id={}", port, key.hashCode());
             final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
@@ -329,7 +327,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             }
             session.sendEmptyResponse(Response.ACCEPTED);
             log.debug("Delete accepted: port={}, id={}", port, key.hashCode());
-//        });
+        });
     }
 
     @NotNull
@@ -339,7 +337,6 @@ public final class ServiceImpl extends HttpServer implements Service {
         return emptyResponse(Response.ACCEPTED);
     }
 
-    @SuppressWarnings("UnusedMethod")
     @NotNull
     private Future<Response> submit(@NotNull final Supplier<Response> supplier) {
         log.debug("Local task submitted: port={}", port);
