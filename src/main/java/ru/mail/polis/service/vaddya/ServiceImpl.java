@@ -207,7 +207,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
-        log.debug("Scheduling get entity: rf={}, id={}", rf, id.hashCode());
+        log.debug("Scheduling get entity: rf={}, id={}", proxied ? "local" : rf, id.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(getEntityLocal(key)));
             return;
@@ -215,7 +215,9 @@ public final class ServiceImpl extends HttpServer implements Service {
 
         final var futures = topology.primaryFor(key, rf)
                 .stream()
-                .map(node -> topology.isMe(node) ? submit(() -> getEntityLocal(key)) : clients.get(node).get(id))
+                .map(node -> topology.isMe(node)
+                        ? submit(() -> getEntityLocal(key))
+                        : clients.get(node).get(id))
                 .collect(toList());
 
         asyncExecute(() -> {
@@ -258,7 +260,7 @@ public final class ServiceImpl extends HttpServer implements Service {
         }
 
         final var key = wrapString(id);
-        log.debug("Scheduling put entity: rf={}, id={}", rf, id.hashCode());
+        log.debug("Scheduling put entity: rf={}, id={}", proxied ? "local" : rf, id.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(putEntityLocal(key, bytes)));
             return;
@@ -301,7 +303,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
-        log.debug("Scheduling delete entity: rf={}, id={}", rf, id.hashCode());
+        log.debug("Scheduling delete entity: rf={}, id={}", proxied ? "local" : rf, id.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(deleteEntityLocal(key)));
             return;
@@ -309,7 +311,9 @@ public final class ServiceImpl extends HttpServer implements Service {
 
         final var futures = topology.primaryFor(key, rf)
                 .stream()
-                .map(node -> topology.isMe(node) ? submit(() -> deleteEntityLocal(key)) : clients.get(node).delete(id))
+                .map(node -> topology.isMe(node)
+                        ? submit(() -> deleteEntityLocal(key))
+                        : clients.get(node).delete(id))
                 .collect(toList());
 
         asyncExecute(() -> {
@@ -334,6 +338,7 @@ public final class ServiceImpl extends HttpServer implements Service {
 
     @NotNull
     private Future<Response> submit(@NotNull final Supplier<Response> supplier) {
+        log.debug("Local task submitted: port={}", port);
         return ((ExecutorService) workers).submit(supplier::get);
     }
 
