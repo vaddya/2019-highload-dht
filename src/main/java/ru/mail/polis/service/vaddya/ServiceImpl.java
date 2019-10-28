@@ -209,7 +209,8 @@ public final class ServiceImpl extends HttpServer implements Service {
         final var key = wrapString(id);
         log.debug("Scheduling get entity: rf={}, id={}", proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-            asyncExecute(() -> session.send(getEntityLocal(key.duplicate())));
+//            asyncExecute(() -> session.send(getEntityLocal(key.duplicate())));
+            session.send(getEntityLocal(key.duplicate()));
             return;
         }
 
@@ -220,7 +221,7 @@ public final class ServiceImpl extends HttpServer implements Service {
                         : clients.get(node).get(id))
                 .collect(toList());
 
-        asyncExecute(() -> {
+//        asyncExecute(() -> {
             log.debug("Gathering get responses: port={}, id={}", port, key.hashCode());
             final var values = ResponseUtils.extract(futures)
                     .stream()
@@ -233,7 +234,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             }
             session.send(Value.mergeValues(values));
             log.debug("Get returned: port={}, id={}", port, key.hashCode());
-        });
+//        });
     }
 
     @NotNull
@@ -262,7 +263,8 @@ public final class ServiceImpl extends HttpServer implements Service {
         final var key = wrapString(id);
         log.debug("Scheduling put entity: rf={}, id={}", proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-            asyncExecute(() -> session.send(putEntityLocal(key.duplicate(), bytes)));
+//            asyncExecute(() -> session.send(putEntityLocal(key.duplicate(), bytes)));
+            session.send(putEntityLocal(key.duplicate(), bytes));
             return;
         }
 
@@ -273,7 +275,7 @@ public final class ServiceImpl extends HttpServer implements Service {
                         : clients.get(node).put(id, bytes))
                 .collect(toList());
 
-        asyncExecute(() -> {
+//        asyncExecute(() -> {
             log.debug("Gathering put responses: port={}, id={}", port, key.hashCode());
             final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
@@ -283,8 +285,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             }
             session.sendEmptyResponse(Response.CREATED);
             log.debug("Put created: port={}, id={}", port, key.hashCode());
-        });
-
+//        });
     }
 
     @NotNull
@@ -305,7 +306,8 @@ public final class ServiceImpl extends HttpServer implements Service {
         final var key = wrapString(id);
         log.debug("Scheduling delete entity: rf={}, id={}", proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-            asyncExecute(() -> session.send(deleteEntityLocal(key.duplicate())));
+//            asyncExecute(() -> session.send(deleteEntityLocal(key.duplicate())));
+            session.send(deleteEntityLocal(key.duplicate()));
             return;
         }
 
@@ -316,7 +318,7 @@ public final class ServiceImpl extends HttpServer implements Service {
                         : clients.get(node).delete(id))
                 .collect(toList());
 
-        asyncExecute(() -> {
+//        asyncExecute(() -> {
             log.debug("Gathering delete responses: port={}, id={}", port, key.hashCode());
             final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
@@ -326,7 +328,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             }
             session.sendEmptyResponse(Response.ACCEPTED);
             log.debug("Delete accepted: port={}, id={}", port, key.hashCode());
-        });
+//        });
     }
 
     @NotNull
