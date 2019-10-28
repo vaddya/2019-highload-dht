@@ -1,6 +1,7 @@
 package ru.mail.polis.service.vaddya.topology;
 
 import java.nio.ByteBuffer;
+import java.util.HashSet;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
@@ -10,24 +11,24 @@ import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import org.jetbrains.annotations.NotNull;
 
-class ConsistentHashingTopology<T> implements Topology<T> {
+final class ConsistentHashingTopology<T> implements Topology<T> {
     private final T me;
-    private final Set<T> topology;
+    private final Set<T> nodes;
     private final NavigableMap<Long, VirtualNode<T>> ring = new TreeMap<>();
     @SuppressWarnings("UnstableApiUsage")
     private final HashFunction hashFunction = Hashing.murmur3_128(42);
 
     ConsistentHashingTopology(
-            @NotNull final Set<T> topology,
+            @NotNull final Set<T> nodes,
             @NotNull final T me,
             final int vNodeCount) {
-        if (topology.isEmpty()) {
+        if (nodes.isEmpty()) {
             throw new IllegalArgumentException("Topology should not be empty");
         }
-        
-        this.topology = topology;
+
+        this.nodes = nodes;
         this.me = me;
-        topology.forEach(node -> addNode(node, vNodeCount));
+        nodes.forEach(node -> addNode(node, vNodeCount));
     }
 
     @Override
@@ -41,6 +42,28 @@ class ConsistentHashingTopology<T> implements Topology<T> {
         return nodeEntry.getValue().node();
     }
 
+    @NotNull
+    @Override
+    public Set<T> primaryFor(
+            @NotNull final ByteBuffer key,
+            @NotNull final ReplicationFactor rf) {
+        if (rf.from() > nodes.size()) {
+            throw new IllegalArgumentException("Number of required nodes is too big!");
+        }
+
+        final var hash = hashFunction.hashBytes(key.duplicate()).asLong();
+        final var result = new HashSet<T>();
+        var it = ring.tailMap(hash).values().iterator();
+        while (result.size() < rf.from()) {
+            if (!it.hasNext()) {
+                it = ring.values().iterator();
+            }
+            result.add(it.next().node);
+        }
+
+        return result;
+    }
+
     @Override
     public boolean isMe(@NotNull final T node) {
         return me.equals(node);
@@ -49,7 +72,7 @@ class ConsistentHashingTopology<T> implements Topology<T> {
     @Override
     @NotNull
     public Set<T> all() {
-        return topology;
+        return nodes;
     }
 
     private void addNode(

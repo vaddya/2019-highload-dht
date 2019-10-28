@@ -28,8 +28,8 @@ import ru.mail.polis.dao.DAO;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static ru.mail.polis.dao.vaddya.IteratorUtils.collapseIterators;
 import static ru.mail.polis.dao.vaddya.IteratorUtils.collectIterators;
-import static ru.mail.polis.dao.vaddya.IteratorUtils.mergeIterators;
 
 @ThreadSafe
 public class DAOImpl implements DAO {
@@ -87,15 +87,21 @@ public class DAOImpl implements DAO {
     @Override
     @NotNull
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) {
-        Collection<Iterator<TableEntry>> iterators;
+        final var iterator = entryIterator(from);
+        final var alive = Iterators.filter(iterator, e -> !e.hasTombstone());
+        return Iterators.transform(alive, e -> Record.of(e.getKey(), e.getValue()));
+    }
+
+    @NotNull
+    public Iterator<TableEntry> entryIterator(@NotNull final ByteBuffer from) {
+        final Collection<Iterator<TableEntry>> iterators;
         lock.readLock().lock();
         try {
             iterators = collectIterators(memTablePool, ssTables.values(), from);
         } finally {
             lock.readLock().unlock();
         }
-        final var it = mergeIterators(iterators);
-        return Iterators.transform(it, e -> Record.of(e.getKey(), e.getValue()));
+        return collapseIterators(iterators);
     }
 
     @Override
@@ -112,6 +118,21 @@ public class DAOImpl implements DAO {
         }
 
         return next.getValue();
+    }
+
+
+    public TableEntry getEntry(ByteBuffer key) {
+        final var it = entryIterator(key);
+        if (!it.hasNext()) {
+            return null;
+        }
+
+        final var next = it.next();
+        if (!next.getKey().equals(key)) {
+            return null;
+        }
+
+        return next;
     }
 
     @Override
@@ -141,14 +162,15 @@ public class DAOImpl implements DAO {
         final var iterators = tables.stream()
                 .map(table -> table.iterator(ByteBufferUtils.emptyBuffer()))
                 .collect(toList());
-        final var iterator = mergeIterators(iterators);
+        final var iterator = collapseIterators(iterators);
+        final var alive = Iterators.filter(iterator, e -> !e.hasTombstone());
 
         final Table compactedTable;
         final int generation;
         final Path path;
-        if (iterator.hasNext()) { // if not only tombstones
+        if (alive.hasNext()) { // if not only tombstones
             generation = memTablePool.getAndIncrementGeneration();
-            path = flushEntries(generation, iterator);
+            path = flushEntries(generation, alive);
             compactedTable = parseTable(path);
         } else {
             generation = 0;
@@ -158,7 +180,7 @@ public class DAOImpl implements DAO {
 
         lock.writeLock().lock();
         try {
-            generations.forEach(ssTables::remove); 
+            generations.forEach(ssTables::remove);
             if (compactedTable == null) {
                 log.debug("SSTables were collapsed into nothing");
             } else {

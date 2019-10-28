@@ -11,7 +11,6 @@ import ru.mail.polis.dao.Iters;
 import static java.util.stream.Collectors.toList;
 
 final class IteratorUtils {
-
     private IteratorUtils() {
     }
 
@@ -29,9 +28,8 @@ final class IteratorUtils {
 
     @SuppressWarnings("UnstableApiUsage")
     @NotNull
-    static Iterator<TableEntry> mergeIterators(@NotNull final Collection<Iterator<TableEntry>> iterators) {
+    static Iterator<TableEntry> collapseIterators(@NotNull final Collection<Iterator<TableEntry>> iterators) {
         final var merged = Iterators.mergeSorted(iterators, TableEntry.COMPARATOR);
-        final var collapsed = Iters.collapseEquals(merged, TableEntry::getKey);
-        return Iterators.filter(collapsed, e -> !e.hasTombstone());
+        return Iters.collapseEquals(merged, TableEntry::getKey);
     }
 }

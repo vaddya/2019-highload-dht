@@ -1,31 +1,54 @@
 package ru.mail.polis.service.vaddya;
 
-import com.google.common.base.Charsets;
-import one.nio.http.HttpServer;
-import one.nio.http.HttpSession;
-import one.nio.http.Response;
-import one.nio.net.Socket;
-import org.jetbrains.annotations.NotNull;
-import ru.mail.polis.Record;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 
-final class StreamingSession extends HttpSession {
+import com.google.common.base.Charsets;
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import ru.mail.polis.Record;
+
+import one.nio.http.HttpServer;
+import one.nio.http.HttpSession;
+import one.nio.http.Response;
+import one.nio.net.Socket;
+
+final class ServiceSession extends HttpSession {
+    private static final Logger log = LoggerFactory.getLogger(ServiceSession.class);
     private static final byte LF = '\n';
     private static final byte[] CRLF = "\r\n".getBytes(Charsets.UTF_8);
     private static final byte[] EMPTY_CHUNK = "0\r\n\r\n".getBytes(Charsets.UTF_8);
 
     private Iterator<Record> records;
 
-    StreamingSession(
-            @NotNull final Socket socket,
-            @NotNull final HttpServer server) {
+    ServiceSession(Socket socket, HttpServer server) {
         super(socket, server);
     }
 
-    void streamRange(@NotNull final Iterator<Record> records) throws IOException {
+    void sendEmptyResponse(@NotNull final String status) {
+        send(ResponseUtils.emptyResponse(status));
+    }
+
+    void send(@NotNull final Value value) {
+        send(ResponseUtils.valueToResponse(value));
+    }
+
+    void send(@NotNull final Response response) {
+        try {
+            sendResponse(response);
+        } catch (IOException e) {
+            try {
+                log.error("Unable to send response", e);
+                sendError(Response.INTERNAL_ERROR, null);
+            } catch (IOException ex) {
+                log.error("Unable to send error", e);
+            }
+        }
+    }
+
+    void stream(@NotNull final Iterator<Record> records) throws IOException {
         this.records = records;
 
         final var response = new Response(Response.OK);

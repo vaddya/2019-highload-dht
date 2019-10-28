@@ -2,19 +2,28 @@ package ru.mail.polis.service.vaddya;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.DAO;
+import ru.mail.polis.dao.vaddya.DAOImpl;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.vaddya.topology.ReplicationFactor;
 import ru.mail.polis.service.vaddya.topology.Topology;
 
-import one.nio.http.HttpClient;
-import one.nio.http.HttpException;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
@@ -24,20 +33,21 @@ import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.net.ConnectionString;
 import one.nio.net.Socket;
-import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
 
-import static java.util.function.Function.identity;
+import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
-import static ru.mail.polis.service.vaddya.ByteBufferUtils.unwrapBytes;
 import static ru.mail.polis.service.vaddya.ByteBufferUtils.wrapString;
+import static ru.mail.polis.service.vaddya.ResponseUtils.emptyResponse;
 
 public class ServiceImpl extends HttpServer implements Service {
     private static final Logger log = LoggerFactory.getLogger(ServiceImpl.class);
+    private static final String RESPONSE_NOT_ENOUGH_REPLICAS = "504 Not Enough Replicas";
 
-    private final DAO dao;
+    private final DAOImpl dao;
     private final Topology<String> topology;
-    private final Map<String, HttpClient> httpClients;
+    private final ReplicationFactor quorum;
+    private final Map<String, ServiceClient> clients;
 
     /**
      * Create a {@link HttpServer} instance that implements {@link Service}.
@@ -73,69 +83,79 @@ public class ServiceImpl extends HttpServer implements Service {
         super(config);
 
         this.topology = topology;
-        this.dao = dao;
-        this.httpClients = topology.others()
+        this.quorum = ReplicationFactor.quorum(topology.all().size());
+        this.dao = (DAOImpl) dao;
+        this.clients = topology.others()
                 .stream()
-                .collect(toMap(identity(), ServiceImpl::createHttpClient));
+                .collect(toMap(node -> node, this::createHttpClient));
+    }
+
+    @Override
+    public HttpSession createSession(@NotNull final Socket socket) {
+        return new ServiceSession(socket, this);
     }
 
     @Override
     public void handleDefault(
             @NotNull final Request request,
-            @NotNull final HttpSession session) {
-        sendEmptyResponse(session, Response.BAD_REQUEST);
-    }
-
-    @Override
-    public HttpSession createSession(@NotNull final Socket socket) {
-        return new StreamingSession(socket, this);
+            @NotNull final HttpSession httpSession) {
+        ((ServiceSession) httpSession).sendEmptyResponse(Response.BAD_REQUEST);
     }
 
     /**
      * Process heartbeat request and respond with empty OK response.
+     *
+     * @param httpSession HTTP session
      */
     @Path("/v0/status")
-    public Response status() {
-        return emptyResponse(Response.OK);
+    public void status(@NotNull final HttpSession httpSession) {
+        ((ServiceSession) httpSession).sendEmptyResponse(Response.OK);
     }
 
     /**
      * Process request to get, put or delete an entity by ID
      * and write response to the session instance.
      *
-     * @param id      entity ID
-     * @param request HTTP request
-     * @param session HTTP session
+     * @param id          entity ID
+     * @param replicas    replication factor in format "ack/from"
+     * @param request     HTTP request
+     * @param httpSession HTTP session
      */
     @Path("/v0/entity")
     public void entity(
             @Param("id") final String id,
-            final Request request,
-            final HttpSession session) {
+            @Param("replicas") final String replicas,
+            @NotNull final Request request,
+            @NotNull final HttpSession httpSession) {
+        final var session = (ServiceSession) httpSession;
         if (id == null || id.isEmpty()) {
-            sendEmptyResponse(session, Response.BAD_REQUEST);
+            session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
         }
-        final var key = wrapString(id);
-        final var node = topology.primaryFor(key);
-        if (!topology.isMe(node)) {
-            asyncExecute(session, () -> proxy(node, request));
+
+        final var proxied = ResponseUtils.isProxied(request);
+        final ReplicationFactor rf;
+        try {
+            rf = replicas == null ? quorum : ReplicationFactor.parse(replicas);
+        } catch (IllegalArgumentException e) {
+            log.warn("Wrong replication factor: {}", replicas);
+            session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
         }
 
         switch (request.getMethod()) {
             case Request.METHOD_GET:
-                asyncExecute(session, () -> getEntity(key));
+                scheduleGetEntity(session, id, rf, proxied);
                 break;
             case Request.METHOD_PUT:
-                asyncExecute(session, () -> putEntity(key, request.getBody()));
+                schedulePutEntity(session, id, request.getBody(), rf, proxied);
                 break;
             case Request.METHOD_DELETE:
-                asyncExecute(session, () -> deleteEntity(key));
+                scheduleDeleteEntity(session, id, rf, proxied);
                 break;
             default:
                 log.warn("Not supported HTTP-method: {}", request.getMethod());
-                sendEmptyResponse(session, Response.METHOD_NOT_ALLOWED);
+                session.sendEmptyResponse(Response.METHOD_NOT_ALLOWED);
                 break;
         }
     }
@@ -143,126 +163,188 @@ public class ServiceImpl extends HttpServer implements Service {
     /**
      * Process request to get range of values.
      *
-     * @param start   Start key
-     * @param end     End key
-     * @param request HTTP request
-     * @param session HTTP session
+     * @param start       Start key
+     * @param end         End key
+     * @param request     HTTP request
+     * @param httpSession HTTP session
      */
     @Path("/v0/entities")
     public void entities(
             @Param("start") final String start,
             @Param("end") final String end,
-            final Request request,
-            final HttpSession session) {
+            @NotNull final Request request,
+            @NotNull final HttpSession httpSession) {
+        final var session = (ServiceSession) httpSession;
         if (start == null || start.isEmpty()) {
-            sendEmptyResponse(session, Response.BAD_REQUEST);
+            session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
         }
         if (end != null && end.isEmpty()) {
-            sendEmptyResponse(session, Response.BAD_REQUEST);
+            session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
         }
         if (request.getMethod() != Request.METHOD_GET) {
-            sendEmptyResponse(session, Response.METHOD_NOT_ALLOWED);
+            session.sendEmptyResponse(Response.METHOD_NOT_ALLOWED);
             return;
         }
+
         final var startBuffer = wrapString(start);
         final var endBuffer = end == null ? null : wrapString(end);
         try {
             final var range = dao.range(startBuffer, endBuffer);
-            ((StreamingSession) session).streamRange(range);
+            session.stream(range);
         } catch (IOException e) {
-            log.error("Unable to get range of values", e);
+            log.error("Unable to stream range of values", e);
         }
     }
 
+    private void scheduleGetEntity(
+            @NotNull final ServiceSession session,
+            @NotNull final String id,
+            @NotNull final ReplicationFactor rf,
+            final boolean proxied) {
+        final var key = wrapString(id);
+        if (proxied) {
+            asyncExecute(() -> session.send(getEntityLocal(key)));
+            return;
+        }
+
+        final var futures = topology.primaryFor(key, rf)
+                .stream()
+                .map(node -> topology.isMe(node)
+                        ? submit(() -> getEntityLocal(key))
+                        : clients.get(node).get(id))
+                .collect(toList());
+
+        asyncExecute(() -> {
+            final var values = futures.stream()
+                    .map(this::extractFuture)
+                    .filter(Objects::nonNull)
+                    .map(ResponseUtils::responseToValue)
+                    .collect(Collectors.toList());
+            if (values.size() < rf.ack()) {
+                session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
+                return;
+            }
+            session.send(Value.mergeValues(values));
+        });
+    }
+
     @NotNull
-    private Response getEntity(@NotNull final ByteBuffer key) throws IOException {
+    private Response getEntityLocal(@NotNull final ByteBuffer key) {
         try {
-            final var value = dao.get(key);
-            return new Response(Response.OK, unwrapBytes(value));
+            final var entry = dao.getEntry(key);
+            final var value = Value.fromEntry(entry);
+            return ResponseUtils.valueToResponse(value);
         } catch (NoSuchElementException e) {
             return emptyResponse(Response.NOT_FOUND);
         }
     }
 
-    @NotNull
-    private Response putEntity(
-            @NotNull final ByteBuffer key,
-            @Nullable final byte[] bytes) throws IOException {
+    private void schedulePutEntity(
+            @NotNull final ServiceSession session,
+            @NotNull final String id,
+            @Nullable final byte[] bytes,
+            @NotNull final ReplicationFactor rf,
+            final boolean proxied) {
         if (bytes == null) {
-            return emptyResponse(Response.BAD_REQUEST);
+            session.sendEmptyResponse(Response.BAD_REQUEST);
+            return;
         }
+
+        final var key = wrapString(id);
+        if (proxied) {
+            asyncExecute(() -> session.send(putEntityLocal(key, bytes)));
+            return;
+        }
+
+        final var futures = topology.primaryFor(key, rf)
+                .stream()
+                .map(node -> topology.isMe(node)
+                        ? submit(() -> putEntityLocal(key, bytes))
+                        : clients.get(node).put(id, bytes))
+                .collect(toList());
+
+        asyncExecute(() -> {
+            final var responses = extract(futures);
+            if (responses.size() < rf.ack()) {
+                session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
+                return;
+            }
+            session.sendEmptyResponse(Response.CREATED);
+        });
+
+    }
+
+    @NotNull
+    private Response putEntityLocal(
+            @NotNull final ByteBuffer key,
+            @NotNull final byte[] bytes) {
         final var body = ByteBuffer.wrap(bytes);
         dao.upsert(key, body);
         return emptyResponse(Response.CREATED);
     }
 
+    private void scheduleDeleteEntity(
+            @NotNull final ServiceSession session,
+            @NotNull final String id,
+            @NotNull final ReplicationFactor rf,
+            final boolean proxied) {
+        final var key = wrapString(id);
+        if (proxied) {
+            asyncExecute(() -> session.send(deleteEntityLocal(key)));
+            return;
+        }
+
+        final var futures = topology.primaryFor(key, rf)
+                .stream()
+                .map(node -> topology.isMe(node)
+                        ? submit(() -> deleteEntityLocal(key))
+                        : clients.get(node).delete(id))
+                .collect(toList());
+
+        asyncExecute(() -> {
+            final var responses = extract(futures);
+            if (responses.size() < rf.ack()) {
+                session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
+                return;
+            }
+            session.sendEmptyResponse(Response.ACCEPTED);
+        });
+    }
+
     @NotNull
-    private Response deleteEntity(@NotNull final ByteBuffer key) throws IOException {
+    private Response deleteEntityLocal(@NotNull final ByteBuffer key) {
         dao.remove(key);
         return emptyResponse(Response.ACCEPTED);
     }
 
     @NotNull
-    private Response proxy(
-            @NotNull final String node,
-            @NotNull final Request request) throws IOException {
+    private Collection<Response> extract(@NotNull final Collection<Future<Response>> futures) {
+        return futures.stream()
+                .map(this::extractFuture)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    @Nullable
+    private Response extractFuture(@NotNull final Future<Response> future) {
         try {
-            return httpClients.get(node).invoke(request);
-        } catch (InterruptedException | PoolException | HttpException e) {
-            log.error("Unable to proxy request", e);
-            throw new IOException("Unable to proxy request", e);
+            return future.get(1, TimeUnit.SECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            log.debug("Unable to get response from remote node: {}", e.getMessage());
+            return null;
         }
     }
 
-    private void asyncExecute(
-            @NotNull final HttpSession session,
-            @NotNull final ResponseSupplier supplier) {
-        asyncExecute(() -> {
-            try {
-                sendResponse(session, supplier.supply());
-            } catch (IOException e) {
-                log.error("Unable to create response", e);
-                sendEmptyResponse(session, Response.INTERNAL_ERROR);
-            }
-        });
+    @NotNull
+    private Future<Response> submit(@NotNull final Supplier<Response> supplier) {
+        return ((ExecutorService) workers).submit(supplier::get);
     }
+
 
     @NotNull
-    private static Response emptyResponse(@NotNull final String code) {
-        return new Response(code, Response.EMPTY);
-    }
-
-    private static void sendResponse(
-            @NotNull final HttpSession session,
-            @NotNull final Response response) {
-        try {
-            session.sendResponse(response);
-        } catch (IOException e) {
-            try {
-                log.error("Unable to send response", e);
-                session.sendError(Response.INTERNAL_ERROR, null);
-            } catch (IOException ex) {
-                log.error("Unable to send error", e);
-            }
-        }
-    }
-
-    private static void sendEmptyResponse(
-            @NotNull final HttpSession session,
-            @NotNull final String code) {
-        sendResponse(session, emptyResponse(code));
-    }
-
-    @NotNull
-    private static HttpClient createHttpClient(@NotNull final String node) {
-        return new HttpClient(new ConnectionString(node + "?timeout=100"));
-    }
-
-    @FunctionalInterface
-    private interface ResponseSupplier {
-        @NotNull
-        Response supply() throws IOException;
+    private ServiceClient createHttpClient(@NotNull final String node) {
+        return new ServiceClient(new ConnectionString(node + "?timeout=100"), workers);
     }
 }

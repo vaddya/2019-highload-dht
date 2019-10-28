@@ -4,12 +4,14 @@ import java.nio.ByteBuffer;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import org.jetbrains.annotations.NotNull;
 
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 
-public class BasicTopology<T> implements Topology<T> {
+final class BasicTopology<T> implements Topology<T> {
     private final T me;
     private final List<T> nodes;
 
@@ -25,9 +27,29 @@ public class BasicTopology<T> implements Topology<T> {
     @Override
     @NotNull
     public T primaryFor(@NotNull final ByteBuffer key) {
-        final int hash = key.hashCode();
-        final int index = (hash & Integer.MAX_VALUE) % nodes.size();
+        final var index = nodeIndex(key);
         return nodes.get(index);
+    }
+
+    @NotNull
+    @Override
+    public Set<T> primaryFor(
+            @NotNull final ByteBuffer key,
+            @NotNull final ReplicationFactor rf) {
+        if (rf.from() > nodes.size()) {
+            throw new IllegalArgumentException("Number of required nodes is too big!");
+        }
+
+        final var index = nodeIndex(key);
+        return Stream.iterate(index, i -> (i + 1) % nodes.size())
+                .limit(rf.from())
+                .map(nodes::get)
+                .collect(toSet());
+    }
+
+    private int nodeIndex(@NotNull final ByteBuffer key) {
+        final int hash = key.hashCode();
+        return (hash & Integer.MAX_VALUE) % nodes.size();
     }
 
     @Override

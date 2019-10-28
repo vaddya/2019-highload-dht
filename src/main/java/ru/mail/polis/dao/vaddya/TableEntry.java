@@ -11,7 +11,7 @@ import static java.util.Comparator.reverseOrder;
 import static ru.mail.polis.dao.vaddya.ByteBufferUtils.emptyBuffer;
 import static ru.mail.polis.dao.vaddya.TimeUtils.currentTimeNanos;
 
-final class TableEntry implements Comparable<TableEntry> {
+public final class TableEntry implements Comparable<TableEntry> {
     static final Comparator<TableEntry> COMPARATOR = comparing(TableEntry::getKey)
             .thenComparing(TableEntry::ts, reverseOrder());
 
@@ -22,20 +22,20 @@ final class TableEntry implements Comparable<TableEntry> {
     private final long ts;
 
     @NotNull
-    public static TableEntry upsert(
+    static TableEntry upsert(
             @NotNull final ByteBuffer key,
             @NotNull final ByteBuffer value) {
         return new TableEntry(key, value, false, currentTimeNanos());
     }
 
     @NotNull
-    public static TableEntry delete(
+    static TableEntry delete(
             @NotNull final ByteBuffer key) {
         return new TableEntry(key, emptyBuffer(), true, currentTimeNanos());
     }
 
     @NotNull
-    public static TableEntry from(
+    static TableEntry from(
             @NotNull final ByteBuffer key,
             @Nullable final ByteBuffer value,
             final boolean hasTombstone,

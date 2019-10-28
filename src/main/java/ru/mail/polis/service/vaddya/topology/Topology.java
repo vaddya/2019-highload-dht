@@ -53,6 +53,15 @@ public interface Topology<T> {
     T primaryFor(@NotNull ByteBuffer key);
 
     /**
+     * Determine replicas for the given key.
+     *
+     * @param key key for partition algorithm
+     * @return nodes
+     */
+    @NotNull
+    Set<T> primaryFor(@NotNull ByteBuffer key, @NotNull ReplicationFactor rf);
+
+    /**
      * Check if the given node is equal to me using {@link Object#equals} method.
      *
      * @param node node to be checked

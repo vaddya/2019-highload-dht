@@ -16,8 +16,8 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import static ru.mail.polis.dao.vaddya.IteratorUtils.collapseIterators;
 import static ru.mail.polis.dao.vaddya.IteratorUtils.collectIterators;
-import static ru.mail.polis.dao.vaddya.IteratorUtils.mergeIterators;
 
 @ThreadSafe
 final class MemTablePool implements Table, Closeable {
@@ -47,14 +47,14 @@ final class MemTablePool implements Table, Closeable {
     @Override
     @NotNull
     public Iterator<TableEntry> iterator(@NotNull final ByteBuffer from) {
-        Collection<Iterator<TableEntry>> iterators;
+        final Collection<Iterator<TableEntry>> iterators;
         lock.readLock().lock();
         try {
             iterators = collectIterators(currentTable, pendingFlush.values(), from);
         } finally {
             lock.readLock().unlock();
         }
-        return mergeIterators(iterators);
+        return collapseIterators(iterators);
     }
 
     @Override
