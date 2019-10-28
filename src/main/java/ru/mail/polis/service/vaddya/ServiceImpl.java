@@ -96,6 +96,18 @@ public final class ServiceImpl extends HttpServer implements Service {
         ((ServiceSession) httpSession).sendEmptyResponse(Response.BAD_REQUEST);
     }
 
+    @Override
+    public synchronized void start() {
+        super.start();
+        log.debug("Server started on port {}", port);
+    }
+
+    @Override
+    public synchronized void stop() {
+        super.stop();
+        log.debug("Server stopped on port {}", port);
+    }
+
     /**
      * Process heartbeat request and respond with empty OK response.
      *

@@ -64,9 +64,9 @@ final class ServiceSession extends HttpSession {
     protected void processWrite() throws Exception {
         super.processWrite();
 
-//        if (records != null) {
-//            next();
-//        }
+        if (records != null) {
+            next();
+        }
     }
 
     private void next() throws IOException {
