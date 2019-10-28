@@ -215,18 +215,16 @@ public final class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
-        final var responses = topology.primaryFor(key, rf)
+        final var futures = topology.primaryFor(key, rf)
                 .stream()
                 .map(node -> topology.isMe(node)
-                        ? getEntityLocal(key.duplicate())
-                        : extractFuture(clients.get(node).get(id)))
-                .filter(Objects::nonNull)
+                        ? submit(() -> getEntityLocal(key.duplicate()))
+                        : clients.get(node).get(id))
                 .collect(toList());
 
 //        asyncExecute(() -> {
             log.debug("Gathering get responses: port={}, id={}", port, key.hashCode());
-//            final var values = ResponseUtils.extract(futures)
-            final var values = responses
+            final var values = ResponseUtils.extract(futures)
                     .stream()
                     .map(ResponseUtils::responseToValue)
                     .collect(toList());
@@ -270,17 +268,16 @@ public final class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
-        final var responses = topology.primaryFor(key, rf)
+        final var futures = topology.primaryFor(key, rf)
                 .stream()
                 .map(node -> topology.isMe(node)
-                        ? putEntityLocal(key.duplicate(), bytes)
-                        : extractFuture(clients.get(node).put(id, bytes)))
-                .filter(Objects::nonNull)
+                        ? submit(() -> putEntityLocal(key.duplicate(), bytes))
+                        : clients.get(node).put(id, bytes))
                 .collect(toList());
 
 //        asyncExecute(() -> {
             log.debug("Gathering put responses: port={}, id={}", port, key.hashCode());
-//            final var responses = ResponseUtils.extract(futures);
+            final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
                 log.debug("Not enough replicas for put request: port={}, id={}", port, key.hashCode());
@@ -313,17 +310,16 @@ public final class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
-        final var responses = topology.primaryFor(key, rf)
+        final var futures = topology.primaryFor(key, rf)
                 .stream()
                 .map(node -> topology.isMe(node)
-                        ? deleteEntityLocal(key.duplicate())
-                        : extractFuture(clients.get(node).delete(id)))
-                .filter(Objects::nonNull)
+                        ? submit(() -> deleteEntityLocal(key.duplicate()))
+                        : clients.get(node).delete(id))
                 .collect(toList());
 
 //        asyncExecute(() -> {
             log.debug("Gathering delete responses: port={}, id={}", port, key.hashCode());
-//            final var responses = ResponseUtils.extract(futures);
+            final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
                 log.debug("Not enough replicas for delete request: port={}, id={}", port, key.hashCode());
