@@ -75,8 +75,8 @@ final class ResponseUtils {
     @Nullable
     static Response extractFuture(@NotNull final Future<Response> future) {
         try {
-            return future.get(1, TimeUnit.SECONDS);
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            return future.get();
+        } catch (InterruptedException | ExecutionException e) {
             log.debug("Unable to get response from remote node: {}", e.getMessage());
             return null;
         }
