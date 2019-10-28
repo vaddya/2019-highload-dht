@@ -11,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
 
 @ThreadSafe
 final class TableFlusher implements Flusher, Closeable {
-    private static final int THREAD_COUNT = 4;
+    private static final int THREAD_COUNT = 8;
     
     private final DAOImpl dao;
     private final Executor executor;

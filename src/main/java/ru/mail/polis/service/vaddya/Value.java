@@ -14,11 +14,13 @@ final class Value {
     private final long ts;
     private final State state;
 
-    static Value present(byte[] data, long ts) {
+    static Value present(
+            @NotNull final byte[] data,
+            final long ts) {
         return new Value(data, ts, State.PRESENT);
     }
 
-    static Value removed(long ts) {
+    static Value removed(final long ts) {
         return new Value(null, ts, State.REMOVED);
     }
 
@@ -47,7 +49,7 @@ final class Value {
             @Nullable final byte[] data,
             final long ts,
             @NotNull State state) {
-        this.data = data;
+        this.data = data == null ? null : data.clone();
         this.ts = ts;
         this.state = state;
     }

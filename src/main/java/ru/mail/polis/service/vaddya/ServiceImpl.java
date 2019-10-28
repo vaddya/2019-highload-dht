@@ -4,7 +4,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
@@ -128,7 +127,6 @@ public final class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
-        final var proxied = ResponseUtils.isProxied(request);
         final ReplicationFactor rf;
         try {
             rf = replicas == null ? quorum : ReplicationFactor.parse(replicas);
@@ -137,7 +135,8 @@ public final class ServiceImpl extends HttpServer implements Service {
             session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
         }
-
+        
+        final var proxied = ResponseUtils.isProxied(request);
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 scheduleGetEntity(session, id, rf, proxied);
@@ -170,11 +169,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final Request request,
             @NotNull final HttpSession httpSession) {
         final var session = (ServiceSession) httpSession;
-        if (start == null || start.isEmpty()) {
-            session.sendEmptyResponse(Response.BAD_REQUEST);
-            return;
-        }
-        if (end != null && end.isEmpty()) {
+        if (start == null || start.isEmpty() || (end != null && end.isEmpty())) {
             session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
         }
@@ -206,15 +201,12 @@ public final class ServiceImpl extends HttpServer implements Service {
 
         final var futures = topology.primaryFor(key, rf)
                 .stream()
-                .map(node -> topology.isMe(node)
-                        ? submit(() -> getEntityLocal(key))
-                        : clients.get(node).get(id))
+                .map(node -> topology.isMe(node) ? submit(() -> getEntityLocal(key)) : clients.get(node).get(id))
                 .collect(toList());
 
         asyncExecute(() -> {
-            final var values = futures.stream()
-                    .map(ResponseUtils::extractFuture)
-                    .filter(Objects::nonNull)
+            final var values = ResponseUtils.extract(futures)
+                    .stream()
                     .map(ResponseUtils::responseToValue)
                     .collect(toList());
             if (values.size() < rf.ack()) {
@@ -293,9 +285,7 @@ public final class ServiceImpl extends HttpServer implements Service {
 
         final var futures = topology.primaryFor(key, rf)
                 .stream()
-                .map(node -> topology.isMe(node)
-                        ? submit(() -> deleteEntityLocal(key))
-                        : clients.get(node).delete(id))
+                .map(node -> topology.isMe(node) ? submit(() -> deleteEntityLocal(key)) : clients.get(node).delete(id))
                 .collect(toList());
 
         asyncExecute(() -> {

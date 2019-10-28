@@ -23,7 +23,9 @@ final class ServiceSession extends HttpSession {
 
     private Iterator<Record> records;
 
-    ServiceSession(Socket socket, HttpServer server) {
+    ServiceSession(
+            @NotNull final Socket socket,
+            @NotNull final HttpServer server) {
         super(socket, server);
     }
 

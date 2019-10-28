@@ -18,9 +18,9 @@ import one.nio.http.Response;
 import static java.util.stream.Collectors.toList;
 
 final class ResponseUtils {
-    private final static Logger log = LoggerFactory.getLogger(ResponseUtils.class);
-    static final String HEADER_PROXY = "X-OK-Proxy: True";
+    private static final Logger log = LoggerFactory.getLogger(ResponseUtils.class);
     private static final String HEADER_TIMESTAMP = "X-OK-Timestamp: ";
+    static final String HEADER_PROXY = "X-OK-Proxy: True";
 
     private ResponseUtils() {
     }

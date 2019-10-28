@@ -6,6 +6,12 @@ public final class ReplicationFactor {
     private final int ack;
     private final int from;
 
+    /**
+     * Parse replication factor from string in format "ack/from".
+     *
+     * @param replicas string to parse
+     * @return a replication factor instance
+     */
     @NotNull
     public static ReplicationFactor parse(@NotNull final String replicas) {
         final var sepIndex = replicas.indexOf('/');
@@ -17,12 +23,26 @@ public final class ReplicationFactor {
         return new ReplicationFactor(ack, from);
     }
 
+    /**
+     * Create replication factor equals to quorum for the number of nodes.
+     *
+     * @param nodeCount number of nodes in the cluster
+     * @return a replication factor instance
+     */
     @NotNull
     public static ReplicationFactor quorum(final int nodeCount) {
         final var quorum = nodeCount / 2 + 1;
         return new ReplicationFactor(quorum, nodeCount);
     }
 
+    /**
+     * Create replication factor using the number of acknowledgements
+     * and the number of nodes in the cluster.
+     *
+     * @param ackCount  number of acknowledgements
+     * @param nodeCount number of nodes
+     * @return a replication factor instance
+     */
     @NotNull
     public static ReplicationFactor create(
             final int ackCount,
