@@ -69,6 +69,8 @@ public final class ServiceImpl extends HttpServer implements Service {
         config.minWorkers = workersCount;
         config.maxWorkers = workersCount;
 
+        log.debug("Workers count: {}", workersCount);
+
         return new ServiceImpl(config, topology, dao);
     }
 
@@ -211,14 +213,14 @@ public final class ServiceImpl extends HttpServer implements Service {
         final var key = wrapString(id);
         log.debug("Scheduling get entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-            asyncExecute(() -> session.send(getEntityLocal(key.duplicate())));
+            asyncExecute(() -> session.send(getEntityLocal(key)));
             return;
         }
 
         final var futures = topology.primaryFor(key, rf)
                 .stream()
                 .map(node -> topology.isMe(node)
-                        ? submit(() -> getEntityLocal(key.duplicate()))
+                        ? submit(() -> getEntityLocal(key))
                         : clients.get(node).get(id))
                 .collect(toList());
 
@@ -264,14 +266,14 @@ public final class ServiceImpl extends HttpServer implements Service {
         final var key = wrapString(id);
         log.debug("Scheduling put entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-            asyncExecute(() -> session.send(putEntityLocal(key.duplicate(), bytes)));
+            asyncExecute(() -> session.send(putEntityLocal(key, bytes)));
             return;
         }
 
         final var futures = topology.primaryFor(key, rf)
                 .stream()
                 .map(node -> topology.isMe(node)
-                        ? submit(() -> putEntityLocal(key.duplicate(), bytes))
+                        ? submit(() -> putEntityLocal(key, bytes))
                         : clients.get(node).put(id, bytes))
                 .collect(toList());
 
@@ -306,14 +308,14 @@ public final class ServiceImpl extends HttpServer implements Service {
         final var key = wrapString(id);
         log.debug("Scheduling delete entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-            asyncExecute(() -> session.send(deleteEntityLocal(key.duplicate())));
+            asyncExecute(() -> session.send(deleteEntityLocal(key)));
             return;
         }
 
         final var futures = topology.primaryFor(key, rf)
                 .stream()
                 .map(node -> topology.isMe(node)
-                        ? submit(() -> deleteEntityLocal(key.duplicate()))
+                        ? submit(() -> deleteEntityLocal(key))
                         : clients.get(node).delete(id))
                 .collect(toList());
 
@@ -340,7 +342,7 @@ public final class ServiceImpl extends HttpServer implements Service {
     @NotNull
     private Future<Response> submit(@NotNull final Supplier<Response> supplier) {
         log.debug("Local task submitted: port={}", port);
-        return ((ExecutorService) workers).submit(supplier::get);
+        return ioThreadPool.submit(supplier::get);
     }
 
     @NotNull
