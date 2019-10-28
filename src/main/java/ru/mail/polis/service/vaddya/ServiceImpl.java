@@ -207,7 +207,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
-        log.debug("Scheduling get entity: rf={}, hash(id)={}", rf, id.hashCode());
+        log.debug("Scheduling get entity: rf={}, id={}", rf, id.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(getEntityLocal(key)));
             return;
@@ -219,23 +219,24 @@ public final class ServiceImpl extends HttpServer implements Service {
                 .collect(toList());
 
         asyncExecute(() -> {
-            log.debug("Gathering get responses: port={}, hash(id)={}", port, key.hashCode());
+            log.debug("Gathering get responses: port={}, id={}", port, key.hashCode());
             final var values = ResponseUtils.extract(futures)
                     .stream()
                     .map(ResponseUtils::responseToValue)
                     .collect(toList());
             if (values.size() < rf.ack()) {
-                log.debug("Not enough replicas for get request: port={}, hash(id)={}", port, key.hashCode());
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
+                log.debug("Not enough replicas for get request: port={}, id={}", port, key.hashCode());
                 return;
             }
             session.send(Value.mergeValues(values));
+            log.debug("Get returned: port={}, id={}", port, key.hashCode());
         });
     }
 
     @NotNull
     private Response getEntityLocal(@NotNull final ByteBuffer key) {
-        log.debug("Get local entity: port={}, hash(id)={}", port, key.hashCode());
+        log.debug("Get local entity: port={}, id={}", port, key.hashCode());
         try {
             final var entry = dao.getEntry(key);
             final var value = Value.fromEntry(entry);
@@ -257,7 +258,7 @@ public final class ServiceImpl extends HttpServer implements Service {
         }
 
         final var key = wrapString(id);
-        log.debug("Scheduling put entity: rf={}, hash(id)={}", rf, id.hashCode());
+        log.debug("Scheduling put entity: rf={}, id={}", rf, id.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(putEntityLocal(key, bytes)));
             return;
@@ -271,14 +272,15 @@ public final class ServiceImpl extends HttpServer implements Service {
                 .collect(toList());
 
         asyncExecute(() -> {
-            log.debug("Gathering put responses: port={}, hash(id)={}", port, key.hashCode());
+            log.debug("Gathering put responses: port={}, id={}", port, key.hashCode());
             final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
-                log.debug("Not enough replicas for put request: port={}, hash(id)={}", port, key.hashCode());
-                session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
+                session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);                session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
+                log.debug("Not enough replicas for put request: port={}, id={}", port, key.hashCode());
                 return;
             }
             session.sendEmptyResponse(Response.CREATED);
+            log.debug("Put created: port={}, id={}", port, key.hashCode());
         });
 
     }
@@ -287,7 +289,7 @@ public final class ServiceImpl extends HttpServer implements Service {
     private Response putEntityLocal(
             @NotNull final ByteBuffer key,
             @NotNull final byte[] bytes) {
-        log.debug("Put local entity: port={}, hash(id)={}", port, key.hashCode());
+        log.debug("Put local entity: port={}, id={}", port, key.hashCode());
         final var body = ByteBuffer.wrap(bytes);
         dao.upsert(key, body);
         return emptyResponse(Response.CREATED);
@@ -299,7 +301,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
         final var key = wrapString(id);
-        log.debug("Scheduling delete entity: rf={}, hash(id)={}", rf, id.hashCode());
+        log.debug("Scheduling delete entity: rf={}, id={}", rf, id.hashCode());
         if (proxied) {
             asyncExecute(() -> session.send(deleteEntityLocal(key)));
             return;
@@ -311,20 +313,21 @@ public final class ServiceImpl extends HttpServer implements Service {
                 .collect(toList());
 
         asyncExecute(() -> {
-            log.debug("Gathering delete responses: port={}, hash(id)={}", port, key.hashCode());
+            log.debug("Gathering delete responses: port={}, id={}", port, key.hashCode());
             final var responses = ResponseUtils.extract(futures);
             if (responses.size() < rf.ack()) {
-                log.debug("Not enough replicas for delete request: port={}, hash(id)={}", port, key.hashCode());
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
+                log.debug("Not enough replicas for delete request: port={}, id={}", port, key.hashCode());
                 return;
             }
             session.sendEmptyResponse(Response.ACCEPTED);
+            log.debug("Delete accepted: port={}, id={}", port, key.hashCode());
         });
     }
 
     @NotNull
     private Response deleteEntityLocal(@NotNull final ByteBuffer key) {
-        log.debug("Delete local entity: port={}, hash(id)={}", port, key.hashCode());
+        log.debug("Delete local entity: port={}, id={}", port, key.hashCode());
         dao.remove(key);
         return emptyResponse(Response.ACCEPTED);
     }
