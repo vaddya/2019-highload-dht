@@ -210,8 +210,7 @@ public final class ServiceImpl extends HttpServer implements Service {
         final var key = wrapString(id);
         log.debug("Scheduling get entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-//            asyncExecute(() -> session.send(getEntityLocal(key.duplicate())));
-            session.send(getEntityLocal(key.duplicate()));
+            asyncExecute(() -> session.send(getEntityLocal(key.duplicate())));
             return;
         }
 
@@ -266,8 +265,7 @@ public final class ServiceImpl extends HttpServer implements Service {
         final var key = wrapString(id);
         log.debug("Scheduling put entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-//            asyncExecute(() -> session.send(putEntityLocal(key.duplicate(), bytes)));
-            session.send(putEntityLocal(key.duplicate(), bytes));
+            asyncExecute(() -> session.send(putEntityLocal(key.duplicate(), bytes)));
             return;
         }
 
@@ -310,8 +308,7 @@ public final class ServiceImpl extends HttpServer implements Service {
         final var key = wrapString(id);
         log.debug("Scheduling delete entity: port={}, rf={}, id={}", port, proxied ? "local" : rf, key.hashCode());
         if (proxied) {
-//            asyncExecute(() -> session.send(deleteEntityLocal(key.duplicate())));
-            session.send(deleteEntityLocal(key.duplicate()));
+            asyncExecute(() -> session.send(deleteEntityLocal(key.duplicate())));
             return;
         }
 
