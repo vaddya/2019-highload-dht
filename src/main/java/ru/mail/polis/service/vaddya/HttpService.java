@@ -1,13 +1,14 @@
 package ru.mail.polis.service.vaddya;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Future;
-import java.util.function.Supplier;
-
+import one.nio.http.HttpServer;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpSession;
+import one.nio.http.Param;
+import one.nio.http.Path;
+import one.nio.http.Request;
+import one.nio.http.Response;
+import one.nio.net.Socket;
+import one.nio.server.AcceptorConfig;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -18,24 +19,22 @@ import ru.mail.polis.service.Service;
 import ru.mail.polis.service.vaddya.topology.ReplicationFactor;
 import ru.mail.polis.service.vaddya.topology.Topology;
 
-import one.nio.http.HttpServer;
-import one.nio.http.HttpServerConfig;
-import one.nio.http.HttpSession;
-import one.nio.http.Param;
-import one.nio.http.Path;
-import one.nio.http.Request;
-import one.nio.http.Response;
-import one.nio.net.ConnectionString;
-import one.nio.net.Socket;
-import one.nio.server.AcceptorConfig;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.function.Function;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toMap;
 import static ru.mail.polis.service.vaddya.ByteBufferUtils.wrapString;
 import static ru.mail.polis.service.vaddya.ResponseUtils.emptyResponse;
 
-public final class ServiceImpl extends HttpServer implements Service {
-    private static final Logger log = LoggerFactory.getLogger(ServiceImpl.class);
+public final class HttpService extends HttpServer implements Service {
+    private static final Logger log = LoggerFactory.getLogger(HttpService.class);
     private static final String RESPONSE_NOT_ENOUGH_REPLICAS = "504 Not Enough Replicas";
     private static final int MIN_WORKERS = 4;
 
@@ -66,14 +65,14 @@ public final class ServiceImpl extends HttpServer implements Service {
         final var config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptor};
         final var workers = Math.max(workersCount, MIN_WORKERS);
-        log.debug("Workers count: {}", workers);
+        log.info("[{}] Workers count: {}", port, workers);
         config.minWorkers = workers;
         config.maxWorkers = workers;
 
-        return new ServiceImpl(config, topology, dao);
+        return new HttpService(config, topology, dao);
     }
 
-    private ServiceImpl(
+    private HttpService(
             @NotNull final HttpServerConfig config,
             @NotNull final Topology<String> topology,
             @NotNull final DAO dao) throws IOException {
@@ -82,7 +81,7 @@ public final class ServiceImpl extends HttpServer implements Service {
         this.topology = topology;
         this.quorum = ReplicationFactor.quorum(topology.size());
         this.dao = (DAOImpl) dao;
-        this.clients = topology.others()
+        this.clients = topology.all()
                 .stream()
                 .collect(toMap(node -> node, this::createHttpClient));
     }
@@ -102,13 +101,13 @@ public final class ServiceImpl extends HttpServer implements Service {
     @Override
     public synchronized void start() {
         super.start();
-        log.debug("Server started on port {}", port);
+        log.info("[{}] Server started", port);
     }
 
     @Override
     public synchronized void stop() {
         super.stop();
-        log.debug("Server stopped on port {}", port);
+        log.info("[{}] Server stopped", port);
     }
 
     /**
@@ -142,16 +141,16 @@ public final class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
+        final var proxied = ResponseUtils.isProxied(request);
         final ReplicationFactor rf;
         try {
-            rf = replicas == null ? quorum : ReplicationFactor.parse(replicas);
+            rf = proxied || replicas == null ? quorum : ReplicationFactor.parse(replicas);
         } catch (IllegalArgumentException e) {
-            log.debug("Wrong replication factor: {}", replicas);
+            log.debug("[{}] Wrong replication factor: {}", port, replicas);
             session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
         }
 
-        final var proxied = ResponseUtils.isProxied(request);
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 scheduleGetEntity(session, id, rf, proxied);
@@ -163,7 +162,7 @@ public final class ServiceImpl extends HttpServer implements Service {
                 scheduleDeleteEntity(session, id, rf, proxied);
                 break;
             default:
-                log.debug("Not supported HTTP-method: {}", request.getMethod());
+                log.debug("[{}] Not supported HTTP-method: {}", port, request.getMethod());
                 session.sendEmptyResponse(Response.METHOD_NOT_ALLOWED);
                 break;
         }
@@ -209,40 +208,36 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final String id,
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
-        final var key = wrapString(id);
         if (proxied) {
-            asyncExecute(() -> session.send(getEntityLocal(key)));
+            asyncExecute(() -> session.send(getEntityLocal(id)));
             return;
         }
 
-        final var futures = topology.primaryFor(key, rf)
-                .stream()
-                .map(node -> topology.isMe(node)
-                        ? submit(() -> getEntityLocal(key))
-                        : clients.get(node).get(id))
-                .collect(toList());
+        final var nodes = topology.primaryFor(id, rf);
+        final var futures = schedule(nodes, node -> node.get(id));
 
         asyncExecute(() -> {
-            log.debug("Gathering get responses: port={}, id={}", port, key.hashCode());
+            log.debug("[{}] Gathering get responses: id={}", port, id.hashCode());
             final var values = ResponseUtils.extract(futures)
                     .stream()
                     .map(ResponseUtils::responseToValue)
                     .collect(toList());
             if (values.size() < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
-                log.debug("Not enough replicas for get request: port={}, id={}", port, key.hashCode());
+                log.debug("[{}] Not enough replicas for get request: id={}", port, id.hashCode());
                 return;
             }
             final var value = Value.mergeValues(values);
             session.send(value);
-            log.debug("Get returned: port={}, id={}, value={}", port, key.hashCode(), value);
+            log.debug("[{}] Get returned: id={}, value={}", port, id.hashCode(), value);
         });
     }
 
     @NotNull
-    private Response getEntityLocal(@NotNull final ByteBuffer key) {
-        log.debug("Get local entity: port={}, id={}", port, key.hashCode());
+    private Response getEntityLocal(@NotNull final String id) {
+        log.debug("[{}] Get local entity: id={}", port, id.hashCode());
         try {
+            final var key = wrapString(id);
             final var entry = dao.getEntry(key);
             final var value = Value.fromEntry(entry);
             return ResponseUtils.valueToResponse(value);
@@ -262,42 +257,38 @@ public final class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
-        final var key = wrapString(id);
         if (proxied) {
-            asyncExecute(() -> session.send(putEntityLocal(key, bytes)));
+            asyncExecute(() -> session.send(putEntityLocal(id, bytes)));
             return;
         }
 
-        final var futures = topology.primaryFor(key, rf)
-                .stream()
-                .map(node -> topology.isMe(node)
-                        ? submit(() -> putEntityLocal(key, bytes))
-                        : clients.get(node).put(id, bytes))
-                .collect(toList());
+        final var nodes = topology.primaryFor(id, rf);
+        final var futures = schedule(nodes, node -> node.put(id, bytes));
 
         asyncExecute(() -> {
-            log.debug("Gathering put responses: port={}, id={}", port, key.hashCode());
+            log.debug("[{}] Gathering put responses: id={}", port, id.hashCode());
             final var acks = ResponseUtils.extract(futures)
                     .stream()
                     .filter(ResponseUtils::is2xx)
                     .count();
             if (acks >= rf.ack()) {
                 session.sendEmptyResponse(Response.CREATED);
-                log.debug("Put created: port={}, id={}", port, key.hashCode());
+                log.debug("[{}] Put created: id={}", port, id.hashCode());
                 return;
             }
             session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
-            log.debug("Not enough replicas for put request: port={}, id={}", port, key.hashCode());
+            log.debug("[{}] Not enough replicas for put request: id={}", port, id.hashCode());
         });
     }
 
     @NotNull
     private Response putEntityLocal(
-            @NotNull final ByteBuffer key,
+            @NotNull final String id,
             @NotNull final byte[] bytes) {
-        log.debug("Put local entity: port={}, id={}", port, key.hashCode());
-        final var body = ByteBuffer.wrap(bytes);
-        dao.upsert(key, body);
+        log.debug("[{}] Put local entity: id={}", port, id.hashCode());
+        final var key = wrapString(id);
+        final var value = ByteBuffer.wrap(bytes);
+        dao.upsert(key, value);
         return emptyResponse(Response.CREATED);
     }
 
@@ -306,50 +297,81 @@ public final class ServiceImpl extends HttpServer implements Service {
             @NotNull final String id,
             @NotNull final ReplicationFactor rf,
             final boolean proxied) {
-        final var key = wrapString(id);
         if (proxied) {
-            asyncExecute(() -> session.send(deleteEntityLocal(key)));
+            asyncExecute(() -> session.send(deleteEntityLocal(id)));
             return;
         }
 
-        final var futures = topology.primaryFor(key, rf)
-                .stream()
-                .map(node -> topology.isMe(node)
-                        ? submit(() -> deleteEntityLocal(key))
-                        : clients.get(node).delete(id))
-                .collect(toList());
+        final var nodes = topology.primaryFor(id, rf);
+        final var futures = schedule(nodes, node -> node.delete(id));
 
         asyncExecute(() -> {
-            log.debug("Gathering delete responses: port={}, id={}", port, key.hashCode());
+            log.debug("[{}] Gathering delete responses: id={}", port, id.hashCode());
             final var acks = ResponseUtils.extract(futures)
                     .stream()
                     .filter(ResponseUtils::is2xx)
                     .count();
             if (acks < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
-                log.debug("Not enough replicas for delete request: port={}, id={}", port, key.hashCode());
+                log.debug("[{}] Not enough replicas for delete request: id={}", port, id.hashCode());
                 return;
             }
             session.sendEmptyResponse(Response.ACCEPTED);
-            log.debug("Delete accepted: port={}, id={}", port, key.hashCode());
+            log.debug("[{}] Delete accepted: id={}", port, id.hashCode());
         });
     }
 
     @NotNull
-    private Response deleteEntityLocal(@NotNull final ByteBuffer key) {
-        log.debug("Delete local entity: port={}, id={}", port, key.hashCode());
+    private Response deleteEntityLocal(@NotNull final String id) {
+        log.debug("[{}] Delete local entity: id={}", port, id.hashCode());
+        final var key = wrapString(id);
         dao.remove(key);
         return emptyResponse(Response.ACCEPTED);
     }
 
     @NotNull
-    private Future<Response> submit(@NotNull final Supplier<Response> supplier) {
-        log.debug("Local task submitted: port={}", port);
-        return ((ExecutorService) workers).submit(supplier::get);
+    private Collection<Future<Response>> schedule(
+            @NotNull final Collection<String> nodes,
+            @NotNull final Function<ServiceClient, Future<Response>> function) {
+        return nodes.stream()
+                .map(node -> function.apply(clients.get(node)))
+                .collect(toList());
     }
 
     @NotNull
     private ServiceClient createHttpClient(@NotNull final String node) {
-        return new ServiceClient(new ConnectionString(node + "?timeout=100"), workers);
+        if (topology.isMe(node)) {
+            return new LocalServiceClient(workers);
+        }
+        return new HttpServiceClient(node, workers);
+    }
+
+    private final class LocalServiceClient implements ServiceClient {
+        private final ExecutorService executor;
+
+        private LocalServiceClient(@NotNull final ExecutorService executor) {
+            this.executor = executor;
+        }
+
+        @Override
+        @NotNull
+        public Future<Response> get(@NotNull final String id) {
+            return executor.submit(() -> getEntityLocal(id));
+        }
+
+        @Override
+        @NotNull
+        public Future<Response> put(
+                @NotNull final String id,
+                @NotNull final byte[] data) {
+            return executor.submit(() -> putEntityLocal(id, data));
+        }
+
+        @Override
+        @NotNull
+        public Future<Response> delete(
+                @NotNull final String id) {
+            return executor.submit(() -> deleteEntityLocal(id));
+        }
     }
 }

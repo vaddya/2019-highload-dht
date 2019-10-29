@@ -82,7 +82,7 @@ public class DAOImpl implements DAO {
         this.memTablePool = new MemTablePool(flusher, maxGeneration + 1, flushThresholdInBytes);
         this.lock = new ReentrantReadWriteLock();
 
-        log.debug("DAO was opened in directory {}, SSTables count: {}", root, ssTables.size());
+        log.info("DAO was opened in directory {}, SSTables count: {}", root, ssTables.size());
     }
 
     @Override
@@ -197,10 +197,10 @@ public class DAOImpl implements DAO {
         try {
             generations.forEach(ssTables::remove);
             if (compactedTable == null) {
-                log.debug("SSTables were collapsed into nothing");
+                log.info("SSTables were collapsed into nothing");
             } else {
                 ssTables.put(generation, compactedTable);
-                log.debug("SSTables were compacted into {}", path);
+                log.info("SSTables were compacted into {}", path);
             }
         } finally {
             lock.writeLock().unlock();
@@ -237,7 +237,7 @@ public class DAOImpl implements DAO {
                 lock.writeLock().unlock();
             }
 
-            log.debug("Table {} was flushed to the disk into {}", generation, path);
+            log.info("Table {} was flushed to the disk into {}", generation, path);
         } catch (IOException e) {
             log.error("Flushing error: {}", e.getMessage());
         }
@@ -286,7 +286,7 @@ public class DAOImpl implements DAO {
     private static void deleteCompactedFile(@NotNull final Path path) {
         try {
             Files.delete(path);
-            log.trace("Table was removed during compaction: {}", path);
+            log.debug("Table was removed during compaction: {}", path);
         } catch (IOException e) {
             log.error("Unable to remove file {} during compaction: {}", path, e.getMessage());
         }

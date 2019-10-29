@@ -1,17 +1,19 @@
 package ru.mail.polis.service.vaddya.topology;
 
-import java.nio.ByteBuffer;
-import java.util.HashSet;
-import java.util.NavigableMap;
-import java.util.Set;
-import java.util.TreeMap;
-
 import com.google.common.base.Charsets;
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import org.jetbrains.annotations.NotNull;
 
+import java.nio.charset.Charset;
+import java.util.HashSet;
+import java.util.NavigableMap;
+import java.util.Set;
+import java.util.TreeMap;
+
 final class ConsistentHashingTopology<T> implements Topology<T> {
+    private static final Charset DEFAULT_CHARSET = Charsets.UTF_8;
+
     private final T me;
     private final Set<T> nodes;
     private final NavigableMap<Long, VirtualNode<T>> ring = new TreeMap<>();
@@ -33,8 +35,8 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
 
     @Override
     @NotNull
-    public T primaryFor(@NotNull final ByteBuffer key) {
-        final var hash = hashFunction.hashBytes(key.duplicate()).asLong();
+    public T primaryFor(@NotNull final String key) {
+        final var hash = hash(key);
         final var nodeEntry = ring.ceilingEntry(hash);
         if (nodeEntry == null) {
             return ring.firstEntry().getValue().node();
@@ -45,13 +47,13 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
     @NotNull
     @Override
     public Set<T> primaryFor(
-            @NotNull final ByteBuffer key,
+            @NotNull final String key,
             @NotNull final ReplicationFactor rf) {
         if (rf.from() > nodes.size()) {
             throw new IllegalArgumentException("Number of required nodes is too big!");
         }
 
-        final var hash = hashFunction.hashBytes(key.duplicate()).asLong();
+        final var hash = hash(key);
         final var result = new HashSet<T>();
         var it = ring.tailMap(hash).values().iterator();
         while (result.size() < rf.from()) {
@@ -89,6 +91,10 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
             final var hash = hashFunction.hashBytes(vnodeBytes).asLong();
             ring.put(hash, vnode);
         }
+    }
+
+    private long hash(@NotNull final String key) {
+        return hashFunction.hashString(key, DEFAULT_CHARSET).asLong();
     }
 
     private static class VirtualNode<T> {

@@ -1,17 +1,16 @@
 package ru.mail.polis.service.vaddya;
 
-import java.util.Collection;
-import java.util.Objects;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
-
+import one.nio.http.Request;
+import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import one.nio.http.Request;
-import one.nio.http.Response;
+import java.util.Collection;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 import static java.util.stream.Collectors.toList;
 

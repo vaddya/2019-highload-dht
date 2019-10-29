@@ -1,12 +1,11 @@
 package ru.mail.polis.service.vaddya.topology;
 
-import java.nio.ByteBuffer;
+import org.jetbrains.annotations.NotNull;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Stream;
-
-import org.jetbrains.annotations.NotNull;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
@@ -26,7 +25,7 @@ final class BasicTopology<T> implements Topology<T> {
 
     @Override
     @NotNull
-    public T primaryFor(@NotNull final ByteBuffer key) {
+    public T primaryFor(@NotNull final String key) {
         final var index = nodeIndex(key);
         return nodes.get(index);
     }
@@ -34,7 +33,7 @@ final class BasicTopology<T> implements Topology<T> {
     @NotNull
     @Override
     public Set<T> primaryFor(
-            @NotNull final ByteBuffer key,
+            @NotNull final String key,
             @NotNull final ReplicationFactor rf) {
         if (rf.from() > nodes.size()) {
             throw new IllegalArgumentException("Number of required nodes is too big!");
@@ -47,7 +46,7 @@ final class BasicTopology<T> implements Topology<T> {
                 .collect(toSet());
     }
 
-    private int nodeIndex(@NotNull final ByteBuffer key) {
+    private int nodeIndex(@NotNull final String key) {
         final int hash = key.hashCode();
         return (hash & Integer.MAX_VALUE) % nodes.size();
     }

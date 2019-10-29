@@ -17,6 +17,7 @@
 !.codeclimate.yml
 !wrk/*
 !logback.xml
+!log4j.properties
 
 # ...even if they are in subdirectories
 !*/

@@ -1,19 +1,18 @@
 package ru.mail.polis.service.vaddya;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.Iterator;
-
 import com.google.common.base.Charsets;
+import one.nio.http.HttpServer;
+import one.nio.http.HttpSession;
+import one.nio.http.Response;
+import one.nio.net.Socket;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 
-import one.nio.http.HttpServer;
-import one.nio.http.HttpSession;
-import one.nio.http.Response;
-import one.nio.net.Socket;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Iterator;
 
 final class ServiceSession extends HttpSession {
     private static final Logger log = LoggerFactory.getLogger(ServiceSession.class);

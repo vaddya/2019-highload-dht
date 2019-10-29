@@ -16,12 +16,12 @@
 
 package ru.mail.polis.service;
 
-import java.io.IOException;
-import java.util.Set;
-
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.DAO;
-import ru.mail.polis.service.vaddya.ServiceImpl;
+import ru.mail.polis.service.vaddya.HttpService;
+
+import java.io.IOException;
+import java.util.Set;
 
 import static ru.mail.polis.service.vaddya.topology.Topology.consistentHashing;
 
@@ -61,6 +61,6 @@ public final class ServiceFactory {
         }
 
         final var nodes = consistentHashing(topology, "http://localhost:" + port, VNODE_COUNT);
-        return ServiceImpl.create(port, nodes, dao, WORKERS_COUNT);
+        return HttpService.create(port, nodes, dao, WORKERS_COUNT);
     }
 }

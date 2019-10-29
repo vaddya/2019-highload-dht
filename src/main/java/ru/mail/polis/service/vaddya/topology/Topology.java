@@ -1,10 +1,8 @@
 package ru.mail.polis.service.vaddya.topology;
 
-import java.nio.ByteBuffer;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Set;
 
 /**
  * Calculates the data owner for the key.
@@ -50,16 +48,17 @@ public interface Topology<T> {
      * @return node
      */
     @NotNull
-    T primaryFor(@NotNull ByteBuffer key);
+    T primaryFor(@NotNull String key);
 
     /**
      * Determine replicas for the given key.
      *
-     * @param key key for partition algorithm
+     * @param key key for the partition algorithm
+     * @param rf  replication factor
      * @return nodes
      */
     @NotNull
-    Set<T> primaryFor(@NotNull ByteBuffer key, @NotNull ReplicationFactor rf);
+    Set<T> primaryFor(@NotNull String key, @NotNull ReplicationFactor rf);
 
     /**
      * Check if the given node is equal to me using {@link Object#equals} method.
@@ -83,16 +82,4 @@ public interface Topology<T> {
      * @return cluster size
      */
     int size();
-
-    /**
-     * Get all nodes of the cluster except me.
-     *
-     * @return all nodes except me
-     */
-    @NotNull
-    default Set<T> others() {
-        return all().stream()
-                .filter(t -> !isMe(t))
-                .collect(Collectors.toSet());
-    }
 }

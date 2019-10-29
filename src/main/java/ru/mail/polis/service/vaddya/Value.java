@@ -1,11 +1,11 @@
 package ru.mail.polis.service.vaddya;
 
-import java.util.Collection;
-import java.util.Comparator;
-
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import ru.mail.polis.dao.vaddya.TableEntry;
+
+import java.util.Collection;
+import java.util.Comparator;
 
 final class Value {
     private static final Value ABSENT = new Value(State.ABSENT, -1, null);
