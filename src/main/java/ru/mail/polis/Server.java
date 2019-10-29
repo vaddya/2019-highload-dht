@@ -31,7 +31,7 @@ import ru.mail.polis.service.ServiceFactory;
  * @author Vadim Tsesko
  */
 public final class Server {
-    private static final int PORT = 8082;
+    private static final int PORT = 8080;
 
     private Server() {
         // Not instantiable
