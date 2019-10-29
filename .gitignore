@@ -16,6 +16,7 @@
 !checkstyle.xml
 !.codeclimate.yml
 !wrk/*
+!logback.xml
 
 # ...even if they are in subdirectories
 !*/

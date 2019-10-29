@@ -43,6 +43,7 @@ public final class ServiceImpl extends HttpServer implements Service {
     private final Topology<String> topology;
     private final ReplicationFactor quorum;
     private final Map<String, ServiceClient> clients;
+    @SuppressWarnings("UnusedVariable")
     private final ExecutorService ioThreadPool;
 
     /**
@@ -146,7 +147,7 @@ public final class ServiceImpl extends HttpServer implements Service {
         try {
             rf = replicas == null ? quorum : ReplicationFactor.parse(replicas);
         } catch (IllegalArgumentException e) {
-            log.warn("Wrong replication factor: {}", replicas);
+            log.debug("Wrong replication factor: {}", replicas);
             session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
         }
@@ -163,7 +164,7 @@ public final class ServiceImpl extends HttpServer implements Service {
                 scheduleDeleteEntity(session, id, rf, proxied);
                 break;
             default:
-                log.warn("Not supported HTTP-method: {}", request.getMethod());
+                log.debug("Not supported HTTP-method: {}", request.getMethod());
                 session.sendEmptyResponse(Response.METHOD_NOT_ALLOWED);
                 break;
         }
@@ -336,11 +337,11 @@ public final class ServiceImpl extends HttpServer implements Service {
     @NotNull
     private Future<Response> submit(@NotNull final Supplier<Response> supplier) {
         log.debug("Local task submitted: port={}", port);
-        return ioThreadPool.submit(supplier::get);
+        return ((ExecutorService) workers).submit(supplier::get);
     }
 
     @NotNull
     private ServiceClient createHttpClient(@NotNull final String node) {
-        return new ServiceClient(new ConnectionString(node + "?timeout=100"), ioThreadPool);
+        return new ServiceClient(new ConnectionString(node + "?timeout=100"), (ExecutorService) workers);
     }
 }
