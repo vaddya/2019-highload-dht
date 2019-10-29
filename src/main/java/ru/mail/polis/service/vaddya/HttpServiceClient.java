@@ -16,22 +16,21 @@ final class HttpServiceClient extends HttpClient implements ServiceClient {
     private static final long serialVersionUID = -4873134095723122623L;
     private static final Logger log = LoggerFactory.getLogger(HttpServiceClient.class);
     private static final String PATH_ENTITY = "/v0/entity";
+    private static final int TIMEOUT = 100;
 
     private final ExecutorService executor;
 
     HttpServiceClient(
             @NotNull final String node,
             @NotNull final ExecutorService executor) {
-        super(new ConnectionString(node + "?timeout=100"));
+        super(new ConnectionString(node + "?timeout=" + TIMEOUT));
         this.executor = executor;
     }
 
     @Override
     @NotNull
     public Future<Response> get(@NotNull final String id) {
-        if (log.isDebugEnabled()) {
-            log.debug("Get remote entity: toPort={}, id={}", port, hash(id));
-        }
+        log.debug("Get remote entity: toPort={}, id={}", port, id.hashCode());
         return executor.submit(() -> get(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
     }
 
@@ -40,22 +39,14 @@ final class HttpServiceClient extends HttpClient implements ServiceClient {
     public Future<Response> put(
             @NotNull final String id,
             @NotNull final byte[] data) {
-        if (log.isDebugEnabled()) {
-            log.debug("Put remote entity: toPort={}, id={}", port, hash(id));
-        }
+        log.debug("Put remote entity: toPort={}, id={}", port, id.hashCode());
         return executor.submit(() -> put(PATH_ENTITY + "?id=" + id, data, HEADER_PROXY));
     }
 
     @Override
     @NotNull
     public Future<Response> delete(@NotNull final String id) {
-        if (log.isDebugEnabled()) {
-            log.debug("Delete remote entity: toPort={}, id={}", port, hash(id));
-        }
+        log.debug("Delete remote entity: toPort={}, id={}", port, id.hashCode());
         return executor.submit(() -> delete(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
-    }
-
-    private static int hash(@NotNull final String id) {
-        return ByteBufferUtils.wrapString(id).hashCode();
     }
 }

@@ -50,7 +50,7 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
             @NotNull final String key,
             @NotNull final ReplicationFactor rf) {
         if (rf.from() > nodes.size()) {
-            throw new IllegalArgumentException("Number of required nodes is too big!");
+            throw new IllegalArgumentException("Number of the required nodes is too big!");
         }
 
         final var hash = hash(key);
@@ -60,7 +60,7 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
             if (!it.hasNext()) {
                 it = ring.values().iterator();
             }
-            result.add(it.next().node);
+            result.add(it.next().node());
         }
 
         return result;
