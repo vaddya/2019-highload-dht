@@ -24,7 +24,7 @@ final class ServiceSession extends HttpSession {
     private Iterator<Record> records;
 
     @NotNull
-    static ServiceSession wrap(@NotNull final HttpSession httpSession) {
+    static ServiceSession cast(@NotNull final HttpSession httpSession) {
         return (ServiceSession) httpSession;
     }
 

@@ -27,19 +27,25 @@ final class ServiceClient extends HttpClient {
     }
 
     Future<Response> get(@NotNull final String id) {
-        log.debug("Get remote entity: toPort={}, id={}", port, hash(id));
+        if (log.isDebugEnabled()) {
+            log.debug("Get remote entity: toPort={}, id={}", port, hash(id));
+        }
         return executor.submit(() -> get(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
     }
 
     Future<Response> put(
             @NotNull final String id,
             @NotNull final byte[] data) {
-        log.debug("Put remote entity: toPort={}, id={}", port, hash(id));
+        if (log.isDebugEnabled()) {
+            log.debug("Put remote entity: toPort={}, id={}", port, hash(id));
+        }
         return executor.submit(() -> put(PATH_ENTITY + "?id=" + id, data, HEADER_PROXY));
     }
 
     Future<Response> delete(@NotNull final String id) {
-        log.debug("Delete remote entity: toPort={}, id={}", port, hash(id));
+        if (log.isDebugEnabled()) {
+            log.debug("Delete remote entity: toPort={}, id={}", port, hash(id));
+        }
         return executor.submit(() -> delete(PATH_ENTITY + "?id=" + id, HEADER_PROXY));
     }
 

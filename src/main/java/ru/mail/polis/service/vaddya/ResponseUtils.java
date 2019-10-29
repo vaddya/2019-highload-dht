@@ -27,6 +27,10 @@ final class ResponseUtils {
         return request.getHeader(HEADER_PROXY) != null;
     }
 
+    static boolean is2xx(@NotNull final Response response) {
+        return response.getStatus() < 300 && response.getStatus() >= 200;
+    }
+
     @NotNull
     static Response valueToResponse(@NotNull final Value value) {
         if (value.state() == Value.State.PRESENT) {

@@ -33,7 +33,7 @@ import static ru.mail.polis.service.vaddya.topology.Topology.consistentHashing;
 public final class ServiceFactory {
     private static final long MAX_HEAP = 256 * 1024 * 1024;
     private static final int VNODE_COUNT = 100;
-    private static final int WORKERS_COUNT = 2 * Runtime.getRuntime().availableProcessors();
+    private static final int WORKERS_COUNT = Runtime.getRuntime().availableProcessors();
 
     private ServiceFactory() {
         // Not supposed to be instantiated

@@ -2,10 +2,10 @@ package ru.mail.polis.service.vaddya;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Supplier;
 
@@ -38,13 +38,12 @@ import static ru.mail.polis.service.vaddya.ResponseUtils.emptyResponse;
 public final class ServiceImpl extends HttpServer implements Service {
     private static final Logger log = LoggerFactory.getLogger(ServiceImpl.class);
     private static final String RESPONSE_NOT_ENOUGH_REPLICAS = "504 Not Enough Replicas";
+    private static final int MIN_WORKERS = 4;
 
     private final DAOImpl dao;
     private final Topology<String> topology;
     private final ReplicationFactor quorum;
     private final Map<String, ServiceClient> clients;
-    @SuppressWarnings("UnusedVariable")
-    private final ExecutorService ioThreadPool;
 
     /**
      * Create a {@link HttpServer} instance that implements {@link Service}.
@@ -67,8 +66,10 @@ public final class ServiceImpl extends HttpServer implements Service {
 
         final var config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptor};
-        config.minWorkers = workersCount;
-        config.maxWorkers = workersCount;
+        final var workers = Math.max(workersCount, MIN_WORKERS);
+        log.debug("Workers count: {}", workers);
+        config.minWorkers = workers;
+        config.maxWorkers = workers;
 
         return new ServiceImpl(config, topology, dao);
     }
@@ -82,7 +83,6 @@ public final class ServiceImpl extends HttpServer implements Service {
         this.topology = topology;
         this.quorum = ReplicationFactor.quorum(topology.size());
         this.dao = (DAOImpl) dao;
-        this.ioThreadPool = Executors.newFixedThreadPool(topology.size());
         this.clients = topology.others()
                 .stream()
                 .collect(toMap(node -> node, this::createHttpClient));
@@ -97,7 +97,7 @@ public final class ServiceImpl extends HttpServer implements Service {
     public void handleDefault(
             @NotNull final Request request,
             @NotNull final HttpSession httpSession) {
-        ServiceSession.wrap(httpSession).sendEmptyResponse(Response.BAD_REQUEST);
+        ServiceSession.cast(httpSession).sendEmptyResponse(Response.BAD_REQUEST);
     }
 
     @Override
@@ -119,7 +119,7 @@ public final class ServiceImpl extends HttpServer implements Service {
      */
     @Path("/v0/status")
     public void status(@NotNull final HttpSession httpSession) {
-        ServiceSession.wrap(httpSession).sendEmptyResponse(Response.OK);
+        ServiceSession.cast(httpSession).sendEmptyResponse(Response.OK);
     }
 
     /**
@@ -137,7 +137,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @Param("replicas") final String replicas,
             @NotNull final Request request,
             @NotNull final HttpSession httpSession) {
-        final var session = ServiceSession.wrap(httpSession);
+        final var session = ServiceSession.cast(httpSession);
         if (id == null || id.isEmpty()) {
             session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
@@ -185,7 +185,7 @@ public final class ServiceImpl extends HttpServer implements Service {
             @Param("end") final String end,
             @NotNull final Request request,
             @NotNull final HttpSession httpSession) {
-        final var session = ServiceSession.wrap(httpSession);
+        final var session = ServiceSession.cast(httpSession);
         if (start == null || start.isEmpty()) {
             session.sendEmptyResponse(Response.BAD_REQUEST);
             return;
@@ -234,8 +234,9 @@ public final class ServiceImpl extends HttpServer implements Service {
                 log.debug("Not enough replicas for get request: port={}, id={}", port, key.hashCode());
                 return;
             }
-            session.send(Value.mergeValues(values));
-            log.debug("Get returned: port={}, id={}", port, key.hashCode());
+            final var value = Value.mergeValues(values);
+            session.send(value);
+            log.debug("Get returned: port={}, id={}, value={}", port, key.hashCode(), value);
         });
     }
 
@@ -277,7 +278,11 @@ public final class ServiceImpl extends HttpServer implements Service {
 
         asyncExecute(() -> {
             log.debug("Gathering put responses: port={}, id={}", port, key.hashCode());
-            if (ResponseUtils.extract(futures).size() >= rf.ack()) {
+            final var acks = ResponseUtils.extract(futures)
+                    .stream()
+                    .filter(ResponseUtils::is2xx)
+                    .count();
+            if (acks >= rf.ack()) {
                 session.sendEmptyResponse(Response.CREATED);
                 log.debug("Put created: port={}, id={}", port, key.hashCode());
                 return;
@@ -317,7 +322,11 @@ public final class ServiceImpl extends HttpServer implements Service {
 
         asyncExecute(() -> {
             log.debug("Gathering delete responses: port={}, id={}", port, key.hashCode());
-            if (ResponseUtils.extract(futures).size() < rf.ack()) {
+            final var acks = ResponseUtils.extract(futures)
+                    .stream()
+                    .filter(ResponseUtils::is2xx)
+                    .count();
+            if (acks < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
                 log.debug("Not enough replicas for delete request: port={}, id={}", port, key.hashCode());
                 return;
@@ -342,6 +351,6 @@ public final class ServiceImpl extends HttpServer implements Service {
 
     @NotNull
     private ServiceClient createHttpClient(@NotNull final String node) {
-        return new ServiceClient(new ConnectionString(node + "?timeout=100"), (ExecutorService) workers);
+        return new ServiceClient(new ConnectionString(node + "?timeout=100"), workers);
     }
 }
