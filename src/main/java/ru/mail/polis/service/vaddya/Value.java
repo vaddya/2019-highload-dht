@@ -3,7 +3,6 @@ package ru.mail.polis.service.vaddya;
 import java.util.Collection;
 import java.util.Comparator;
 
-import org.checkerframework.checker.units.qual.A;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import ru.mail.polis.dao.vaddya.TableEntry;
