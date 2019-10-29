@@ -8,27 +8,31 @@ import org.jetbrains.annotations.Nullable;
 import ru.mail.polis.dao.vaddya.TableEntry;
 
 final class Value {
-    private static final Value ABSENT = new Value(null, -1, State.ABSENT);
+    private static final Value ABSENT = new Value(State.ABSENT, -1, null);
 
+    private final State state;
+    private final long ts;
     @Nullable
     private final byte[] data;
-    private final long ts;
-    private final State state;
 
+    @NotNull
     static Value present(
             @NotNull final byte[] data,
             final long ts) {
-        return new Value(data, ts, State.PRESENT);
+        return new Value(State.PRESENT, ts, data);
     }
 
+    @NotNull
     static Value removed(final long ts) {
-        return new Value(null, ts, State.REMOVED);
+        return new Value(State.REMOVED, ts, null);
     }
 
+    @NotNull
     static Value absent() {
         return ABSENT;
     }
 
+    @NotNull
     static Value fromEntry(@Nullable final TableEntry entry) {
         if (entry == null) {
             return Value.absent();
@@ -47,29 +51,33 @@ final class Value {
     }
 
     private Value(
-            @Nullable final byte[] data,
+            @NotNull final State state,
             final long ts,
-            @NotNull final State state) {
-        this.data = data == null ? null : data.clone();
-        this.ts = ts;
+            @Nullable final byte[] data) {
         this.state = state;
-    }
-
-    public byte[] data() {
-        return data == null ? null : data.clone();
-    }
-
-    long ts() {
-        return ts;
+        this.ts = ts;
+        this.data = data == null ? null : data.clone();
     }
 
     State state() {
         return state;
     }
 
+    long ts() {
+        return ts;
+    }
+
+    @NotNull
+    public byte[] data() {
+        if (data == null) {
+            throw new IllegalStateException("Trying to get null data");
+        }
+        return data.clone();
+    }
+
     @Override
     public String toString() {
-        return state.toString() + (state == State.ABSENT ? "" : ", ts=" + ts);
+        return state.toString() + ", ts=" + ts;
     }
 
     enum State {
