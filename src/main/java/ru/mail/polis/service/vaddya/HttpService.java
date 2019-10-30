@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Map;
-import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.function.Function;
@@ -83,7 +82,7 @@ public final class HttpService extends HttpServer implements Service {
         this.dao = (DAOImpl) dao;
         this.clients = topology.all()
                 .stream()
-                .collect(toMap(node -> node, this::createHttpClient));
+                .collect(toMap(node -> node, this::createServiceClient));
     }
 
     @Override
@@ -216,19 +215,21 @@ public final class HttpService extends HttpServer implements Service {
         final var futures = schedule(nodes, node -> node.get(id));
 
         asyncExecute(() -> {
-            log.debug("[{}] Gathering get responses: id={}", port, id.hashCode());
-            final var values = ResponseUtils.extract(futures)
-                    .stream()
-                    .map(ResponseUtils::responseToValue)
-                    .collect(toList());
-            if (values.size() < rf.ack()) {
+            final var idHash = id.hashCode();
+            log.debug("[{}] Gathering get responses: id={}", port, idHash);
+            final var responses = ResponseUtils.extract(futures);
+            final var acks = responses.size();
+            if (acks < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
-                log.debug("[{}] Not enough replicas for get request: id={}", port, id.hashCode());
+                log.debug("[{}] Not enough replicas for get request: id={}, {}/{}", port, idHash, acks, rf.ack());
                 return;
             }
+            final var values = responses.stream()
+                    .map(ResponseUtils::responseToValue)
+                    .collect(toList());
             final var value = Value.merge(values);
             session.send(value);
-            log.debug("[{}] Get returned: id={}, value={}", port, id.hashCode(), value);
+            log.debug("[{}] Get returned: id={}, value={}", port, idHash, value);
         });
     }
 
@@ -261,18 +262,19 @@ public final class HttpService extends HttpServer implements Service {
         final var futures = schedule(nodes, node -> node.put(id, bytes));
 
         asyncExecute(() -> {
-            log.debug("[{}] Gathering put responses: id={}", port, id.hashCode());
+            final var idHash = id.hashCode();
+            log.debug("[{}] Gathering put responses: id={}", port, idHash);
             final var acks = ResponseUtils.extract(futures)
                     .stream()
                     .filter(ResponseUtils::is2xx)
                     .count();
             if (acks >= rf.ack()) {
                 session.sendEmptyResponse(Response.CREATED);
-                log.debug("[{}] Put created: id={}", port, id.hashCode());
+                log.debug("[{}] Put created: id={}", port, idHash);
                 return;
             }
             session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
-            log.debug("[{}] Not enough replicas for put request: id={}", port, id.hashCode());
+            log.debug("[{}] Not enough replicas for put request: id={}, {}/{}", port, idHash, acks, rf.ack());
         });
     }
 
@@ -301,18 +303,19 @@ public final class HttpService extends HttpServer implements Service {
         final var futures = schedule(nodes, node -> node.delete(id));
 
         asyncExecute(() -> {
-            log.debug("[{}] Gathering delete responses: id={}", port, id.hashCode());
+            final var idHash = id.hashCode();
+            log.debug("[{}] Gathering delete responses: id={}", port, idHash);
             final var acks = ResponseUtils.extract(futures)
                     .stream()
                     .filter(ResponseUtils::is2xx)
                     .count();
             if (acks < rf.ack()) {
                 session.sendEmptyResponse(RESPONSE_NOT_ENOUGH_REPLICAS);
-                log.debug("[{}] Not enough replicas for delete request: id={}", port, id.hashCode());
+                log.debug("[{}] Not enough replicas for delete request: id={}, {}/{}", port, idHash, acks, rf.ack());
                 return;
             }
             session.sendEmptyResponse(Response.ACCEPTED);
-            log.debug("[{}] Delete accepted: id={}", port, id.hashCode());
+            log.debug("[{}] Delete accepted: id={}", port, idHash);
         });
     }
 
@@ -334,7 +337,7 @@ public final class HttpService extends HttpServer implements Service {
     }
 
     @NotNull
-    private ServiceClient createHttpClient(@NotNull final String node) {
+    private ServiceClient createServiceClient(@NotNull final String node) {
         if (topology.isMe(node)) {
             return new LocalServiceClient(workers);
         }
