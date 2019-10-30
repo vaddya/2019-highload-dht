@@ -115,12 +115,12 @@ public class DAOImpl implements DAO {
     @Override
     @NotNull
     public ByteBuffer get(@NotNull final ByteBuffer key) throws NoSuchEntityException {
-        final var it = iterator(key);
-        if (!it.hasNext()) {
+        final var iterator = iterator(key);
+        if (!iterator.hasNext()) {
             throw new NoSuchEntityException("Not found");
         }
 
-        final var next = it.next();
+        final var next = iterator.next();
         if (!next.getKey().equals(key)) {
             throw new NoSuchEntityException("Not found");
         }
@@ -137,12 +137,12 @@ public class DAOImpl implements DAO {
      */
     @Nullable
     public TableEntry getEntry(@NotNull final ByteBuffer key) {
-        final var it = entryIterator(key);
-        if (!it.hasNext()) {
+        final var iterator = entryIterator(key);
+        if (!iterator.hasNext()) {
             return null;
         }
 
-        final var next = it.next();
+        final var next = iterator.next();
         if (!next.getKey().equals(key)) {
             return null;
         }

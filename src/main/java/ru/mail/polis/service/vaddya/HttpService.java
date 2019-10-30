@@ -177,7 +177,6 @@ public final class HttpService extends HttpServer implements Service {
      * @param httpSession HTTP session
      */
     @Path("/v0/entities")
-    @SuppressWarnings("OperatorPrecedence")
     public void entities(
             @Param("start") final String start,
             @Param("end") final String end,
@@ -227,7 +226,7 @@ public final class HttpService extends HttpServer implements Service {
                 log.debug("[{}] Not enough replicas for get request: id={}", port, id.hashCode());
                 return;
             }
-            final var value = Value.mergeValues(values);
+            final var value = Value.merge(values);
             session.send(value);
             log.debug("[{}] Get returned: id={}, value={}", port, id.hashCode(), value);
         });
@@ -236,14 +235,10 @@ public final class HttpService extends HttpServer implements Service {
     @NotNull
     private Response getEntityLocal(@NotNull final String id) {
         log.debug("[{}] Get local entity: id={}", port, id.hashCode());
-        try {
-            final var key = wrapString(id);
-            final var entry = dao.getEntry(key);
-            final var value = Value.fromEntry(entry);
-            return ResponseUtils.valueToResponse(value);
-        } catch (NoSuchElementException e) {
-            return emptyResponse(Response.NOT_FOUND);
-        }
+        final var key = wrapString(id);
+        final var entry = dao.getEntry(key);
+        final var value = Value.fromEntry(entry);
+        return ResponseUtils.valueToResponse(value);
     }
 
     private void schedulePutEntity(

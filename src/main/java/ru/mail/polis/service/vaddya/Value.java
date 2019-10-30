@@ -43,7 +43,7 @@ final class Value {
     }
 
     @NotNull
-    static Value mergeValues(@NotNull final Collection<Value> values) {
+    static Value merge(@NotNull final Collection<Value> values) {
         return values.stream()
                 .filter(v -> v.state() != Value.State.ABSENT)
                 .max(Comparator.comparing(Value::ts))

@@ -10,8 +10,7 @@ final class NoSuchEntityException extends NoSuchElementException {
     }
     
     @Override
-    @SuppressWarnings("UnsynchronizedOverridesSynchronized")
-    public Throwable fillInStackTrace() {
+    public synchronized Throwable fillInStackTrace() {
         return this;
     }
 }

@@ -26,9 +26,9 @@ final class IteratorUtils {
         return iterators;
     }
 
-    @SuppressWarnings("UnstableApiUsage")
     @NotNull
     static Iterator<TableEntry> collapseIterators(@NotNull final Collection<Iterator<TableEntry>> iterators) {
+        @SuppressWarnings("UnstableApiUsage")
         final var merged = Iterators.mergeSorted(iterators, TableEntry.COMPARATOR);
         return Iters.collapseEquals(merged, TableEntry::getKey);
     }
