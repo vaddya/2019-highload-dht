@@ -11,6 +11,8 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static java.util.stream.Collectors.toList;
 
@@ -76,8 +78,8 @@ final class ResponseUtils {
     @Nullable
     static Response extractFuture(@NotNull final Future<Response> future) {
         try {
-            return future.get();
-        } catch (InterruptedException | ExecutionException e) {
+            return future.get(1, TimeUnit.SECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
             log.debug("Unable to get response from remote node: {}", e.getMessage());
             return null;
         }
