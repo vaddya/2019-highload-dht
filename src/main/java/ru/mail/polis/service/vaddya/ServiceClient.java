@@ -1,41 +1,40 @@
 package ru.mail.polis.service.vaddya;
 
-import one.nio.http.Response;
 import org.jetbrains.annotations.NotNull;
 
-import java.util.concurrent.Future;
+import java.util.concurrent.CompletableFuture;
 
 /**
- * HTTP client for {@link ru.mail.polis.service.Service}.
+ * Asynchronous client for {@link ru.mail.polis.service.Service}.
  */
 public interface ServiceClient {
     /**
-     * Get a value by key.
+     * Get a value by key asynchronously.
      *
      * @param id key
-     * @return HTTP response
+     * @return future of value
      */
     @NotNull
-    Future<Response> get(@NotNull String id);
+    CompletableFuture<Value> getAsync(@NotNull String id);
 
     /**
-     * Put a value by key.
+     * Put a value by key asynchronously.
      *
      * @param id   key
      * @param data value
-     * @return HTTP response
+     * @return future of nothing
      */
     @NotNull
-    Future<Response> put(
+    CompletableFuture<Void> putAsync(
             @NotNull String id,
             @NotNull byte[] data);
 
     /**
-     * Delete a value by key.
+     * Delete a value by key asynchronously.
      *
      * @param id key
-     * @return HTTP response
+     * @return future of nothing
      */
     @NotNull
-    Future<Response> delete(@NotNull String id);
+    CompletableFuture<Void> deleteAsync(@NotNull String id);
 }

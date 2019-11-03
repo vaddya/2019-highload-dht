@@ -14,6 +14,8 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 
+import static ru.mail.polis.service.vaddya.ResponseUtils.TRANSFER_ENCODING_CHUNKED;
+
 final class ServiceSession extends HttpSession {
     private static final Logger log = LoggerFactory.getLogger(ServiceSession.class);
     private static final byte LF = '\n';
@@ -58,7 +60,7 @@ final class ServiceSession extends HttpSession {
         this.records = records;
 
         final var response = new Response(Response.OK);
-        response.addHeader("Transfer-Encoding: chunked");
+        response.addHeader(TRANSFER_ENCODING_CHUNKED);
         writeResponse(response, false);
 
         next();

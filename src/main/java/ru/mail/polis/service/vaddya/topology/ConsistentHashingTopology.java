@@ -44,8 +44,8 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
         return nodeEntry.getValue().node();
     }
 
-    @NotNull
     @Override
+    @NotNull
     public Set<T> primaryFor(
             @NotNull final String key,
             @NotNull final ReplicationFactor rf) {

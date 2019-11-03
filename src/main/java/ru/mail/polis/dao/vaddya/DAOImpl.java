@@ -82,7 +82,7 @@ public class DAOImpl implements DAO {
         this.memTablePool = new MemTablePool(flusher, maxGeneration + 1, flushThresholdInBytes);
         this.lock = new ReentrantReadWriteLock();
 
-        log.info("DAO was opened in directory {}, SSTables count: {}", root, ssTables.size());
+        log.info("DAO was opened in directory {}, SSTables count={}", root, ssTables.size());
     }
 
     @Override

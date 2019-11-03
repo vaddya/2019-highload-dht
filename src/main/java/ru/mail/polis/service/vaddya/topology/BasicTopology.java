@@ -30,8 +30,8 @@ final class BasicTopology<T> implements Topology<T> {
         return nodes.get(index);
     }
 
-    @NotNull
     @Override
+    @NotNull
     public Set<T> primaryFor(
             @NotNull final String key,
             @NotNull final ReplicationFactor rf) {
