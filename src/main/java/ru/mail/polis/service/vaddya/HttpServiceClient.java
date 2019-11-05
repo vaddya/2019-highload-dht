@@ -11,7 +11,9 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
-import static ru.mail.polis.service.vaddya.ResponseUtils.*;
+import static ru.mail.polis.service.vaddya.ResponseUtils.HEADER_TIMESTAMP;
+import static ru.mail.polis.service.vaddya.ResponseUtils.PROXY_HEADER;
+import static ru.mail.polis.service.vaddya.ResponseUtils.PROXY_TRUE;
 
 final class HttpServiceClient implements ServiceClient {
     private static final Logger log = LoggerFactory.getLogger(HttpServiceClient.class);

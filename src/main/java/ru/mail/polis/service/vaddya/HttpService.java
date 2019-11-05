@@ -257,7 +257,7 @@ public final class HttpService extends HttpServer implements Service {
                 .collect(toList());
 
         CompletableFutureUtils.firstN(futures, rf.ack())
-                .handle((res, e) -> handleResponses(res, e, (__) -> emptyResponse(Response.CREATED)))
+                .handle((res, e) -> handleResponses(res, e, voids -> emptyResponse(Response.CREATED)))
                 .thenAccept(session::send);
     }
 
@@ -290,7 +290,7 @@ public final class HttpService extends HttpServer implements Service {
                 .collect(toList());
 
         CompletableFutureUtils.firstN(futures, rf.ack())
-                .handle((res, e) -> handleResponses(res, e, (__) -> emptyResponse(Response.ACCEPTED)))
+                .handle((res, e) -> handleResponses(res, e, voids -> emptyResponse(Response.ACCEPTED)))
                 .thenAccept(session::send);
     }
 

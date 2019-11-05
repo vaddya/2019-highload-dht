@@ -10,6 +10,9 @@ import java.util.function.BiConsumer;
 
 final class CompletableFutureUtils {
 
+    private CompletableFutureUtils() {
+    }
+
     @SuppressWarnings("FutureReturnValueIgnored")
     static <T> CompletableFuture<Collection<T>> firstN(
             @NotNull final Collection<CompletableFuture<T>> futures,
