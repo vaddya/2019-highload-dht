@@ -10,13 +10,16 @@ import java.util.HashSet;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.locks.StampedLock;
 
 final class ConsistentHashingTopology<T> implements Topology<T> {
     private static final Charset DEFAULT_CHARSET = Charsets.UTF_8;
 
     private final T me;
     private final Set<T> nodes;
+    private final int vNodeCount;
     private final NavigableMap<Long, VirtualNode<T>> ring = new TreeMap<>();
+    private final StampedLock lock = new StampedLock();
     @SuppressWarnings("UnstableApiUsage")
     private final HashFunction hashFunction = Hashing.murmur3_128(42);
 
@@ -28,20 +31,26 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
             throw new IllegalArgumentException("Topology should not be empty");
         }
 
-        this.nodes = nodes;
         this.me = me;
+        this.nodes = new HashSet<>(nodes);
+        this.vNodeCount = vNodeCount;
         nodes.forEach(node -> addNode(node, vNodeCount));
     }
 
     @Override
     @NotNull
     public T primaryFor(@NotNull final String key) {
-        final var hash = hash(key);
-        final var nodeEntry = ring.ceilingEntry(hash);
-        if (nodeEntry == null) {
-            return ring.firstEntry().getValue().node();
+        final var stamp = lock.readLock();
+        try {
+            final var hash = hash(key);
+            final var nodeEntry = ring.ceilingEntry(hash);
+            if (nodeEntry == null) {
+                return ring.firstEntry().getValue().node();
+            }
+            return nodeEntry.getValue().node();
+        } finally {
+            lock.unlockRead(stamp);
         }
-        return nodeEntry.getValue().node();
     }
 
     @Override
@@ -52,18 +61,23 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
         if (rf.from() > nodes.size()) {
             throw new IllegalArgumentException("Number of the required nodes is too big!");
         }
-
-        final var hash = hash(key);
-        final var result = new HashSet<T>();
-        var it = ring.tailMap(hash).values().iterator();
-        while (result.size() < rf.from()) {
-            if (!it.hasNext()) {
-                it = ring.values().iterator();
+        
+        final var stamp = lock.readLock();
+        try {
+            final var hash = hash(key);
+            final var result = new HashSet<T>();
+            var it = ring.tailMap(hash).values().iterator();
+            while (result.size() < rf.from()) {
+                if (!it.hasNext()) {
+                    it = ring.values().iterator();
+                }
+                result.add(it.next().node());
             }
-            result.add(it.next().node());
-        }
 
-        return result;
+            return result;
+        } finally {
+            lock.unlockRead(stamp);
+        }
     }
 
     @Override
@@ -74,12 +88,44 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
     @Override
     @NotNull
     public Set<T> all() {
-        return nodes;
+        final var stamp = lock.readLock();
+        try {
+            return nodes;
+        } finally {
+            lock.unlockRead(stamp);
+        }
     }
 
     @Override
     public int size() {
-        return nodes.size();
+        final var stamp = lock.readLock();
+        try {
+            return nodes.size();
+        } finally {
+            lock.unlockRead(stamp);
+        }
+    }
+
+    @Override
+    public void addNode(@NotNull final T node) {
+        final var stamp = lock.writeLock();
+        try {
+            nodes.add(node);
+            addNode(node, vNodeCount);
+        } finally {
+            lock.unlockWrite(stamp);
+        }
+    }
+
+    @Override
+    public void removeNode(@NotNull final T node) {
+        final var stamp = lock.writeLock();
+        try {
+            nodes.remove(node);
+            ring.entrySet().removeIf(e -> e.getValue().node().equals(node));
+        } finally {
+            lock.unlockWrite(stamp);
+        }
     }
 
     private void addNode(

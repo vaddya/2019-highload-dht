@@ -82,4 +82,18 @@ public interface Topology<T> {
      * @return cluster size
      */
     int size();
+
+    /**
+     * Add node to the cluster.
+     *
+     * @param node node to be added
+     */
+    void addNode(@NotNull T node);
+
+    /**
+     * Remove node from the cluster.
+     *
+     * @param node node to be deleted
+     */
+    void removeNode(@NotNull T node);
 }

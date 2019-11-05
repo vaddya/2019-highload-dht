@@ -327,7 +327,7 @@ public final class HttpService extends HttpServer implements Service {
     private final class LocalServiceClient implements ServiceClient {
         private final ExecutorService executor;
 
-        private LocalServiceClient(@NotNull final ExecutorService executor) {
+        LocalServiceClient(@NotNull final ExecutorService executor) {
             this.executor = executor;
         }
 

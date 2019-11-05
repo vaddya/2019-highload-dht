@@ -5,6 +5,7 @@ import org.jetbrains.annotations.NotNull;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.locks.StampedLock;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
@@ -13,6 +14,7 @@ import static java.util.stream.Collectors.toSet;
 final class BasicTopology<T> implements Topology<T> {
     private final T me;
     private final List<T> nodes;
+    private final StampedLock lock = new StampedLock();
 
     BasicTopology(
             @NotNull final Set<T> topology,
@@ -26,8 +28,13 @@ final class BasicTopology<T> implements Topology<T> {
     @Override
     @NotNull
     public T primaryFor(@NotNull final String key) {
-        final var index = nodeIndex(key);
-        return nodes.get(index);
+        final var stamp = lock.readLock();
+        try {
+            final var index = nodeIndex(key);
+            return nodes.get(index);
+        } finally {
+            lock.unlockRead(stamp);
+        }
     }
 
     @Override
@@ -39,11 +46,16 @@ final class BasicTopology<T> implements Topology<T> {
             throw new IllegalArgumentException("Number of required nodes is too big!");
         }
 
-        final var index = nodeIndex(key);
-        return Stream.iterate(index, i -> (i + 1) % nodes.size())
-                .limit(rf.from())
-                .map(nodes::get)
-                .collect(toSet());
+        final var stamp = lock.readLock();
+        try {
+            final var index = nodeIndex(key);
+            return Stream.iterate(index, i -> (i + 1) % nodes.size())
+                    .limit(rf.from())
+                    .map(nodes::get)
+                    .collect(toSet());
+        } finally {
+            lock.unlockRead(stamp); 
+        }
     }
 
     private int nodeIndex(@NotNull final String key) {
@@ -59,11 +71,41 @@ final class BasicTopology<T> implements Topology<T> {
     @Override
     @NotNull
     public Set<T> all() {
-        return new HashSet<>(nodes);
+        final var stamp = lock.readLock();
+        try {
+            return new HashSet<>(nodes);
+        } finally {
+            lock.unlockRead(stamp);
+        }
     }
 
     @Override
     public int size() {
-        return nodes.size();
+        final var stamp = lock.readLock();
+        try {
+            return nodes.size();
+        } finally {
+            lock.unlockRead(stamp);
+        }
+    }
+
+    @Override
+    public void addNode(@NotNull final T node) {
+        final var stamp = lock.writeLock();
+        try {
+            nodes.add(node);
+        } finally {
+            lock.unlockWrite(stamp);
+        }
+    }
+
+    @Override
+    public void removeNode(@NotNull final T node) {
+        final var stamp = lock.writeLock();
+        try {
+            nodes.remove(node);
+        } finally {
+            lock.unlockWrite(stamp);
+        }
     }
 }

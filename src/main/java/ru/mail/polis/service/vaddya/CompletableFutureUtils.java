@@ -27,7 +27,7 @@ final class CompletableFutureUtils {
         final var lock = new ReentrantLock();
 
         final var future = new CompletableFuture<Collection<T>>();
-        final BiConsumer<T, Throwable> c = (result, error) -> {
+        final BiConsumer<T, Throwable> onComplete = (result, error) -> {
             if (future.isDone()) {
                 return;
             }
@@ -53,7 +53,7 @@ final class CompletableFutureUtils {
             }
         };
 
-        futures.forEach(f -> f.whenComplete(c));
+        futures.forEach(f -> f.whenComplete(onComplete));
         return future;
     }
 }

@@ -13,9 +13,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ConsistentHashingTopologyTest {
     private static final String ME = "http://localhost:8080";
     private static final Set<String> NODES = Set.of(ME, "http://localhost:8081", "http://localhost:8082");
+    private static final String NEW_NODE = "http://localhost:8083";
+    private static final ReplicationFactor RF = ReplicationFactor.create(1, 2);
     private static final int KEY_LENGTH = 16;
     private static final int VNODE_COUNT = 200;
     private static final int KEYS_COUNT = 10_000_000;
+    private static final float ACCEPTABLE_DELTA = 0.1f; // ±10%
 
     @Test
     void testConsistency() {
@@ -34,21 +37,60 @@ class ConsistentHashingTopologyTest {
     void testConsistencyWithReplicationFactor() {
         final Topology<String> topology1 = createTopology();
         final Topology<String> topology2 = createTopology();
-        final ReplicationFactor rf = ReplicationFactor.create(1, 2);
 
         for (long i = 0; i < KEYS_COUNT; i++) {
             final String key = randomKey();
-            final Set<String> nodes1 = topology1.primaryFor(key, rf);
-            final Set<String> nodes2 = topology2.primaryFor(key, rf);
+            final Set<String> nodes1 = topology1.primaryFor(key, RF);
+            final Set<String> nodes2 = topology2.primaryFor(key, RF);
             assertEquals(nodes1, nodes2);
         }
+    }
+
+    @Test
+    void testKeysMigration() {
+        final Topology<String> topology = createTopology();
+        final Topology<String> topologyWithNew = createTopology();
+        topologyWithNew.addNode(NEW_NODE);
+        final Topology<String> topologyWithoutMe = createTopology();
+        topologyWithoutMe.removeNode(ME);
+
+        // only k/N keys need to be remapped when k is the number of keys and N is the number of servers 
+        // (more specifically, the maximum of the initial and final number of servers)
+        final int expectedKeysMigratedWithNew = KEYS_COUNT / Math.max(topology.size(), topologyWithNew.size());
+        final int expectedKeysMigratedWithoutMe = KEYS_COUNT / Math.max(topology.size(), topologyWithoutMe.size());
+        final int keysDeltaWithNew = (int) (expectedKeysMigratedWithNew * ACCEPTABLE_DELTA);
+        final int keysDeltaWithoutMe = (int) (expectedKeysMigratedWithoutMe * ACCEPTABLE_DELTA);
+
+        int keysMigratedWithNew = 0;
+        int keysMigratedWithoutMe = 0;
+        for (long i = 0; i < KEYS_COUNT; i++) {
+            final String key = randomKey();
+            final String node = topology.primaryFor(key);
+
+            final String nodeWithNew = topologyWithNew.primaryFor(key);
+            if (!node.equals(nodeWithNew)) {
+                keysMigratedWithNew++;
+            }
+
+            final String nodeWithoutMe = topologyWithoutMe.primaryFor(key);
+            assert !nodeWithoutMe.equals(ME);
+            if (!node.equals(nodeWithoutMe)) {
+                keysMigratedWithoutMe++;
+            }
+        }
+
+        assertTrue(keysMigratedWithNew < expectedKeysMigratedWithNew + keysDeltaWithNew,
+                "Too many keys have changed their location after adding node: " + keysMigratedWithNew);
+
+        assertTrue(keysMigratedWithoutMe < expectedKeysMigratedWithoutMe + keysDeltaWithoutMe,
+                "Too many keys have changed their location after removing node: " + keysMigratedWithoutMe);
     }
 
     @Test
     void testUniformDistribution() {
         final Topology<String> topology = createTopology();
         final int expectedKeysPerNode = KEYS_COUNT / NODES.size();
-        final int keysDelta = (int) (expectedKeysPerNode * 0.1); // ±10%
+        final int keysDelta = (int) (expectedKeysPerNode * ACCEPTABLE_DELTA);
 
         final Map<String, Integer> counters = new HashMap<>();
         for (long i = 0; i < KEYS_COUNT; i++) {
@@ -63,14 +105,13 @@ class ConsistentHashingTopologyTest {
     @Test
     void testUniformDistributionWithReplicationFactor() {
         final Topology<String> topology = createTopology();
-        final ReplicationFactor rf = ReplicationFactor.create(1, 2);
-        final int expectedKeysPerNode = (KEYS_COUNT / NODES.size()) * rf.from();
-        final int keysDelta = (int) (expectedKeysPerNode * 0.1); // ±10%
+        final int expectedKeysPerNode = (KEYS_COUNT / NODES.size()) * RF.from();
+        final int keysDelta = (int) (expectedKeysPerNode * ACCEPTABLE_DELTA);
 
         final Map<String, Integer> counters = new HashMap<>();
         for (long i = 0; i < KEYS_COUNT; i++) {
             final String key = randomKey();
-            final Set<String> nodes = topology.primaryFor(key, rf);
+            final Set<String> nodes = topology.primaryFor(key, RF);
             nodes.forEach(node -> counters.compute(node, (n, c) -> c == null ? 1 : c + 1));
         }
 
