@@ -17,7 +17,7 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
 
     private final T me;
     private final Set<T> nodes;
-    private final int vNodeCount;
+    private final int vnodeCount;
     private final NavigableMap<Long, VirtualNode<T>> ring = new TreeMap<>();
     private final StampedLock lock = new StampedLock();
     @SuppressWarnings("UnstableApiUsage")
@@ -26,15 +26,15 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
     ConsistentHashingTopology(
             @NotNull final Set<T> nodes,
             @NotNull final T me,
-            final int vNodeCount) {
+            final int vnodeCount) {
         if (nodes.isEmpty()) {
             throw new IllegalArgumentException("Topology should not be empty");
         }
 
         this.me = me;
         this.nodes = new HashSet<>(nodes);
-        this.vNodeCount = vNodeCount;
-        nodes.forEach(node -> addNode(node, vNodeCount));
+        this.vnodeCount = vnodeCount;
+        nodes.forEach(this::addNode);
     }
 
     @Override
@@ -111,7 +111,12 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
         final var stamp = lock.writeLock();
         try {
             nodes.add(node);
-            addNode(node, vNodeCount);
+            for (var i = 0; i < vnodeCount; i++) {
+                final var vnode = new VirtualNode<>(node, i);
+                final var vnodeBytes = vnode.name().getBytes(Charsets.UTF_8);
+                final var hash = hashFunction.hashBytes(vnodeBytes).asLong();
+                ring.put(hash, vnode);
+            }
         } finally {
             lock.unlockWrite(stamp);
         }
@@ -125,17 +130,6 @@ final class ConsistentHashingTopology<T> implements Topology<T> {
             ring.entrySet().removeIf(e -> e.getValue().node().equals(node));
         } finally {
             lock.unlockWrite(stamp);
-        }
-    }
-
-    private void addNode(
-            @NotNull final T node,
-            final int vNodeCount) {
-        for (var i = 0; i < vNodeCount; i++) {
-            final var vnode = new VirtualNode<>(node, i);
-            final var vnodeBytes = vnode.name().getBytes(Charsets.UTF_8);
-            final var hash = hashFunction.hashBytes(vnodeBytes).asLong();
-            ring.put(hash, vnode);
         }
     }
 

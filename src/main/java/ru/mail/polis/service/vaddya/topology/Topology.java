@@ -30,15 +30,15 @@ public interface Topology<T> {
      *
      * @param topology   cluster nodes
      * @param me         current node
-     * @param vNodeCount a number of virtual nodes per one physical node
+     * @param vnodeCount a number of virtual nodes per one physical node
      * @return a topology instance
      */
     @NotNull
     static <T> Topology<T> consistentHashing(
             @NotNull final Set<T> topology,
             @NotNull final T me,
-            final int vNodeCount) {
-        return new ConsistentHashingTopology<>(topology, me, vNodeCount);
+            final int vnodeCount) {
+        return new ConsistentHashingTopology<>(topology, me, vnodeCount);
     }
 
     /**
