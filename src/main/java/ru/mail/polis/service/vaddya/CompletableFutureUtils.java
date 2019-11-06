@@ -1,6 +1,9 @@
 package ru.mail.polis.service.vaddya;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -9,11 +12,11 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiConsumer;
 
 final class CompletableFutureUtils {
+    private static final Logger log = LoggerFactory.getLogger(CompletableFutureUtils.class);
 
     private CompletableFutureUtils() {
     }
 
-    @SuppressWarnings("FutureReturnValueIgnored")
     static <T> CompletableFuture<Collection<T>> firstN(
             @NotNull final Collection<CompletableFuture<T>> futures,
             final int n) {
@@ -53,7 +56,15 @@ final class CompletableFutureUtils {
             }
         };
 
-        futures.forEach(f -> f.whenComplete(onComplete));
+        futures.forEach(f -> f.whenComplete(onComplete)
+                .thenApply(x -> null)
+                .exceptionally(CompletableFutureUtils::logError));
         return future;
+    }
+
+    @Nullable
+    private static Void logError(@NotNull final Throwable t) {
+        log.error("Unexpected error", t);
+        return null;
     }
 }

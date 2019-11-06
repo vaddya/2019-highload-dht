@@ -32,7 +32,6 @@ import static java.util.stream.Collectors.toMap;
 import static ru.mail.polis.service.vaddya.ByteBufferUtils.wrapString;
 import static ru.mail.polis.service.vaddya.ResponseUtils.emptyResponse;
 
-@SuppressWarnings("FutureReturnValueIgnored")
 public final class HttpService extends HttpServer implements Service {
     private static final Logger log = LoggerFactory.getLogger(HttpService.class);
     private static final String RESPONSE_NOT_ENOUGH_REPLICAS = "504 Not Enough Replicas";
@@ -220,7 +219,8 @@ public final class HttpService extends HttpServer implements Service {
 
         CompletableFutureUtils.firstN(futures, rf.ack())
                 .handle((res, e) -> handleResponses(res, e, ResponseUtils::valuesToResponse))
-                .thenAccept(session::send);
+                .thenAccept(session::send)
+                .exceptionally(this::logError);
     }
 
     @NotNull
@@ -258,7 +258,8 @@ public final class HttpService extends HttpServer implements Service {
 
         CompletableFutureUtils.firstN(futures, rf.ack())
                 .handle((res, e) -> handleResponses(res, e, voids -> emptyResponse(Response.CREATED)))
-                .thenAccept(session::send);
+                .thenAccept(session::send)
+                .exceptionally(this::logError);
     }
 
     private void putEntityLocal(
@@ -291,7 +292,8 @@ public final class HttpService extends HttpServer implements Service {
 
         CompletableFutureUtils.firstN(futures, rf.ack())
                 .handle((res, e) -> handleResponses(res, e, voids -> emptyResponse(Response.ACCEPTED)))
-                .thenAccept(session::send);
+                .thenAccept(session::send)
+                .exceptionally(this::logError);
     }
 
     private void deleteEntityLocal(@NotNull final String id) {
@@ -314,6 +316,12 @@ public final class HttpService extends HttpServer implements Service {
         }
         log.error("[{}] Unknown response error", port, error);
         return emptyResponse(Response.INTERNAL_ERROR);
+    }
+
+    @Nullable
+    private Void logError(@NotNull final Throwable t) {
+        log.error("Unexpected error", t);
+        return null;
     }
 
     @NotNull
