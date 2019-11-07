@@ -18,7 +18,7 @@ import static ru.mail.polis.service.vaddya.ResponseUtils.PROXY_TRUE;
 final class HttpServiceClient implements ServiceClient {
     private static final Logger log = LoggerFactory.getLogger(HttpServiceClient.class);
     private static final String PATH_ENTITY = "/v0/entity";
-    private static final int TIMEOUT_MILLIS = 100;
+    private static final int TIMEOUT_MILLIS = 200;
 
     private final String baseUrl;
     private final HttpClient client;
