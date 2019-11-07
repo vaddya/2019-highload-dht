@@ -18,7 +18,7 @@ package ru.mail.polis;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Set;
+import java.util.Collections;
 
 import ru.mail.polis.dao.DAO;
 import ru.mail.polis.dao.DAOFactory;
@@ -31,7 +31,7 @@ import ru.mail.polis.service.ServiceFactory;
  * @author Vadim Tsesko
  */
 public final class Server {
-    private static final int PORT = 8082;
+    private static final int PORT = 8080;
 
     private Server() {
         // Not instantiable
@@ -47,11 +47,7 @@ public final class Server {
                 ServiceFactory.create(
                         PORT,
                         dao,
-                        Set.of(
-                                "http://localhost:8080",
-                                "http://localhost:8081",
-                                "http://localhost:8082"
-                        ));
+                        Collections.singleton("http://localhost:" + PORT));
         service.start();
         Runtime.getRuntime().addShutdownHook(
                 new Thread(() -> {
