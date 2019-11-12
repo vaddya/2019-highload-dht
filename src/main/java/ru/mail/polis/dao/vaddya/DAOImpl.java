@@ -39,9 +39,9 @@ public class DAOImpl implements DAO {
     private static final Logger log = LoggerFactory.getLogger(DAOImpl.class);
 
     private final File root;
-    private final TableFlusher flusher = new TableFlusher(this);
     private final MemTablePool memTablePool;
     private final Map<Integer, Table> ssTables = new HashMap<>();
+    private final TableFlusher flusher = new TableFlusher(this);
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
