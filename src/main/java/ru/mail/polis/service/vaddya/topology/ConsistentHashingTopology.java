@@ -5,6 +5,7 @@ import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
 import org.jetbrains.annotations.NotNull;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.nio.charset.Charset;
 import java.util.HashSet;
 import java.util.NavigableMap;
@@ -12,6 +13,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.locks.StampedLock;
 
+@ThreadSafe
 final class ConsistentHashingTopology<T> implements Topology<T> {
     private static final Charset DEFAULT_CHARSET = Charsets.UTF_8;
 

@@ -10,17 +10,19 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 
 import static ru.mail.polis.service.vaddya.ResponseUtils.TRANSFER_ENCODING_CHUNKED;
 
+@ThreadSafe
 final class ServiceSession extends HttpSession {
-    private static final Logger log = LoggerFactory.getLogger(ServiceSession.class);
     private static final byte LF = '\n';
     private static final byte[] CRLF = "\r\n".getBytes(Charsets.UTF_8);
     private static final byte[] EMPTY_CHUNK = "0\r\n\r\n".getBytes(Charsets.UTF_8);
+    private static final Logger log = LoggerFactory.getLogger(ServiceSession.class);
 
     private Iterator<Record> records;
 

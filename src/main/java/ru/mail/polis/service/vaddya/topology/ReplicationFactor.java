@@ -16,7 +16,7 @@ public final class ReplicationFactor {
     public static ReplicationFactor parse(@NotNull final String replicas) {
         final var sepIndex = replicas.indexOf('/');
         if (sepIndex == -1) {
-            throw new IllegalArgumentException("Wrong replica");
+            throw new IllegalArgumentException("Wrong replica factor");
         }
         final var ack = Integer.parseInt(replicas.substring(0, sepIndex));
         final var from = Integer.parseInt(replicas.substring(sepIndex + 1));

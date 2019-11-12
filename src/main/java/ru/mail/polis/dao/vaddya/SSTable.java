@@ -2,10 +2,12 @@ package ru.mail.polis.dao.vaddya;
 
 import org.jetbrains.annotations.NotNull;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.Iterator;
 
+@ThreadSafe
 final class SSTable implements Table {
     static final int MAGIC = 0xCAFEFEED;
 

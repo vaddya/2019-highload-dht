@@ -4,6 +4,7 @@ import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -15,18 +16,17 @@ import static ru.mail.polis.service.vaddya.ResponseUtils.HEADER_TIMESTAMP;
 import static ru.mail.polis.service.vaddya.ResponseUtils.PROXY_HEADER;
 import static ru.mail.polis.service.vaddya.ResponseUtils.PROXY_TRUE;
 
+@ThreadSafe
 final class HttpServiceClient implements ServiceClient {
-    private static final Logger log = LoggerFactory.getLogger(HttpServiceClient.class);
     private static final String PATH_ENTITY = "/v0/entity";
     private static final int TIMEOUT_MILLIS = 200;
+    private static final Logger log = LoggerFactory.getLogger(HttpServiceClient.class);
 
     private final String baseUrl;
-    private final HttpClient client;
+    private final HttpClient client = HttpClient.newHttpClient();
 
     HttpServiceClient(@NotNull final String baseUrl) {
         this.baseUrl = baseUrl;
-        this.client = HttpClient.newBuilder()
-                .build();
     }
 
     @Override

@@ -2,6 +2,7 @@ package ru.mail.polis.service.vaddya.topology;
 
 import org.jetbrains.annotations.NotNull;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -11,6 +12,7 @@ import java.util.stream.Stream;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
+@ThreadSafe
 final class BasicTopology<T> implements Topology<T> {
     private final T me;
     private final List<T> nodes;

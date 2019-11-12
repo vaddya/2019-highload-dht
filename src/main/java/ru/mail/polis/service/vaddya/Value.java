@@ -4,9 +4,11 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import ru.mail.polis.dao.vaddya.TableEntry;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.util.Collection;
 import java.util.Comparator;
 
+@ThreadSafe
 final class Value {
     private static final Value ABSENT = new Value(State.ABSENT, -1, null);
 

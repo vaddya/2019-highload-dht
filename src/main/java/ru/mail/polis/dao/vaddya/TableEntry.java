@@ -3,6 +3,7 @@ package ru.mail.polis.dao.vaddya;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.nio.ByteBuffer;
 import java.util.Comparator;
 
@@ -11,6 +12,7 @@ import static java.util.Comparator.reverseOrder;
 import static ru.mail.polis.dao.vaddya.ByteBufferUtils.emptyBuffer;
 import static ru.mail.polis.dao.vaddya.TimeUtils.currentTimeNanos;
 
+@ThreadSafe
 public final class TableEntry implements Comparable<TableEntry> {
     static final Comparator<TableEntry> COMPARATOR = comparing(TableEntry::getKey)
             .thenComparing(TableEntry::ts, reverseOrder());

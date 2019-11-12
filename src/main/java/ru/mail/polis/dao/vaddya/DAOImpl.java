@@ -39,10 +39,10 @@ public class DAOImpl implements DAO {
     private static final Logger log = LoggerFactory.getLogger(DAOImpl.class);
 
     private final File root;
-    private final TableFlusher flusher;
+    private final TableFlusher flusher = new TableFlusher(this);
     private final MemTablePool memTablePool;
-    private final Map<Integer, Table> ssTables;
-    private final ReadWriteLock lock;
+    private final Map<Integer, Table> ssTables = new HashMap<>();
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
      * Creates persistent DAO.
@@ -54,34 +54,8 @@ public class DAOImpl implements DAO {
             @NotNull final File root,
             final long flushThresholdInBytes) {
         this.root = root;
-        this.flusher = new TableFlusher(this);
-        this.ssTables = new HashMap<>();
-
-        final var tableFiles = Optional.ofNullable(root.list())
-                .map(Arrays::asList)
-                .orElse(emptyList())
-                .stream()
-                .filter(s -> s.endsWith(FINAL_SUFFIX))
-                .collect(toList());
-        var maxGeneration = 0;
-        for (final var name : tableFiles) {
-            try {
-                final var generation = parseGeneration(name);
-                maxGeneration = Math.max(generation, maxGeneration);
-
-                final var path = Path.of(root.getAbsolutePath(), name);
-                final var table = parseTable(path);
-                this.ssTables.put(generation, table);
-            } catch (IllegalArgumentException e) {
-                log.error("Unable to parse generation from file {}: {}", name, e.getMessage());
-            } catch (IOException e) {
-                log.error("Unable to read table from file {}: {}", name, e.getMessage());
-            }
-        }
-
+        final var maxGeneration = openDirectory(root);
         this.memTablePool = new MemTablePool(flusher, maxGeneration + 1, flushThresholdInBytes);
-        this.lock = new ReentrantReadWriteLock();
-
         log.info("DAO was opened in directory {}, SSTables count={}", root, ssTables.size());
     }
 
@@ -133,7 +107,7 @@ public class DAOImpl implements DAO {
      * Value could be a tombstone.
      *
      * @param key key to search for
-     * @return value of {@code null}
+     * @return value or {@code null}
      */
     @Nullable
     public TableEntry getEntry(@NotNull final ByteBuffer key) {
@@ -211,11 +185,36 @@ public class DAOImpl implements DAO {
                 .forEach(DAOImpl::deleteCompactedFile);
     }
 
+    private int openDirectory(@NotNull final File root) {
+        final var tableFiles = Optional.ofNullable(root.list())
+                .map(Arrays::asList)
+                .orElse(emptyList())
+                .stream()
+                .filter(s -> s.endsWith(FINAL_SUFFIX))
+                .collect(toList());
+        var maxGeneration = 0;
+        for (final var name : tableFiles) {
+            try {
+                final var generation = parseGeneration(name);
+                maxGeneration = Math.max(generation, maxGeneration);
+
+                final var path = Path.of(root.getAbsolutePath(), name);
+                final var table = parseTable(path);
+                this.ssTables.put(generation, table);
+            } catch (IllegalArgumentException e) {
+                log.error("Unable to parse generation from file {}: {}", name, e.getMessage());
+            } catch (IOException e) {
+                log.error("Unable to read table from file {}: {}", name, e.getMessage());
+            }
+        }
+        return maxGeneration;
+    }
+    
     @NotNull
     private Map<Integer, Table> getTablesToCompact() {
         lock.readLock().lock();
         try {
-            return new HashMap<>(ssTables); // for now it's all SSTables
+            return new HashMap<>(ssTables); // NB: that are all SSTables for now
         } finally {
             lock.readLock().unlock();
         }

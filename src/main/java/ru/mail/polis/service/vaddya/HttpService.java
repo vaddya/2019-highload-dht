@@ -19,6 +19,7 @@ import ru.mail.polis.service.Service;
 import ru.mail.polis.service.vaddya.topology.ReplicationFactor;
 import ru.mail.polis.service.vaddya.topology.Topology;
 
+import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -32,10 +33,11 @@ import static java.util.stream.Collectors.toMap;
 import static ru.mail.polis.service.vaddya.ByteBufferUtils.wrapString;
 import static ru.mail.polis.service.vaddya.ResponseUtils.emptyResponse;
 
+@ThreadSafe
 public final class HttpService extends HttpServer implements Service {
-    private static final Logger log = LoggerFactory.getLogger(HttpService.class);
     private static final String RESPONSE_NOT_ENOUGH_REPLICAS = "504 Not Enough Replicas";
     private static final int MIN_WORKERS = 4;
+    private static final Logger log = LoggerFactory.getLogger(HttpService.class);
 
     private final DAOImpl dao;
     private final Topology<String> topology;

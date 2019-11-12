@@ -15,13 +15,12 @@ final class TableFlusher implements Flusher, Closeable {
     
     private final DAOImpl dao;
     private final Executor executor;
-    private final Phaser phaser;
+    private final Phaser phaser = new Phaser(1); // one party for closing call
 
     TableFlusher(@NotNull final DAOImpl dao) {
         this.dao = dao;
         final var threadFactory = new ThreadFactoryBuilder().setNameFormat("flusher-%d").build();
         this.executor = Executors.newFixedThreadPool(THREAD_COUNT, threadFactory);
-        this.phaser = new Phaser(1); // one party for close call  
     }
 
     @Override

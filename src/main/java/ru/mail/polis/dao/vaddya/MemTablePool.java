@@ -23,25 +23,21 @@ import static ru.mail.polis.dao.vaddya.IteratorUtils.collectIterators;
 final class MemTablePool implements Table, Closeable {
     private static final Logger log = LoggerFactory.getLogger(MemTablePool.class);
 
-    private final ReadWriteLock lock;
-    private Table currentTable;
-    private final Map<Integer, Table> pendingFlush;
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private Table currentTable = new MemTable();
+    private final Map<Integer, Table> pendingFlush = new TreeMap<>();
+    private final AtomicBoolean stopped = new AtomicBoolean(false);
     private final Flusher flusher;
     private final AtomicInteger currentGeneration;
     private final long flushThresholdInBytes;
-    private final AtomicBoolean stopped;
 
     MemTablePool(
             @NotNull final Flusher flusher,
             final int startGeneration,
             final long flushThresholdInBytes) {
-        this.lock = new ReentrantReadWriteLock();
-        this.currentTable = new MemTable();
-        this.pendingFlush = new TreeMap<>();
         this.flusher = flusher;
         this.currentGeneration = new AtomicInteger(startGeneration);
         this.flushThresholdInBytes = flushThresholdInBytes;
-        this.stopped = new AtomicBoolean();
     }
 
     @Override
