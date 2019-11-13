@@ -1,4 +1,7 @@
-package ru.mail.polis.dao.vaddya;
+package ru.mail.polis.dao.vaddya.memtable;
+
+import org.jetbrains.annotations.NotNull;
+import ru.mail.polis.dao.vaddya.TableEntry;
 
 import javax.annotation.concurrent.ThreadSafe;
 import java.nio.ByteBuffer;
@@ -7,10 +10,8 @@ import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import org.jetbrains.annotations.NotNull;
-
 @ThreadSafe
-final class MemTable implements Table {
+final class MemTableImpl implements MemTable {
     private final NavigableMap<ByteBuffer, TableEntry> table = new ConcurrentSkipListMap<>();
     private final AtomicInteger currentSize = new AtomicInteger();
 
@@ -19,7 +20,7 @@ final class MemTable implements Table {
     public Iterator<TableEntry> iterator(@NotNull final ByteBuffer from) {
         return table.tailMap(from).values().iterator();
     }
-    
+
     @Override
     public int currentSize() {
         return currentSize.get();

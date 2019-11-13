@@ -1,6 +1,8 @@
-package ru.mail.polis.dao.vaddya;
+package ru.mail.polis.dao.vaddya.sstable;
 
 import org.jetbrains.annotations.NotNull;
+import ru.mail.polis.dao.vaddya.ByteBufferUtils;
+import ru.mail.polis.dao.vaddya.TableEntry;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -11,7 +13,9 @@ import java.util.Iterator;
 import static java.nio.ByteOrder.BIG_ENDIAN;
 import static java.nio.channels.FileChannel.MapMode.READ_ONLY;
 
-interface Table {
+public interface SSTable {
+    int MAGIC = 0xCAFEFEED;
+
     /**
      * Get iterator over the table entries starting from the given key.
      */
@@ -22,35 +26,6 @@ interface Table {
      * Get current size of the table entries in bytes.
      */
     int currentSize();
-
-    /**
-     * Insert a value into the table using the given key.
-     *
-     * @throws UnsupportedOperationException if table is immutable
-     */
-    default void upsert(
-            @NotNull final ByteBuffer key,
-            @NotNull final ByteBuffer value) {
-        throw new UnsupportedOperationException("Table is immutable");
-    }
-
-    /**
-     * Remove a value from the table using the given key.
-     *
-     * @throws UnsupportedOperationException if table is immutable
-     */
-    default void remove(@NotNull final ByteBuffer key) {
-        throw new UnsupportedOperationException("Table is immutable");
-    }
-
-    /**
-     * Perform table clearing.
-     *
-     * @throws UnsupportedOperationException if table is immutable
-     */
-    default void clear() {
-        throw new UnsupportedOperationException("Table is immutable");
-    }
 
     /**
      * Flush table entries to the specified channel.
@@ -96,7 +71,7 @@ interface Table {
      * @throws IOException if cannot read data or table format is invalid
      */
     @NotNull
-    static Table from(@NotNull final FileChannel channel) throws IOException {
+    static SSTable from(@NotNull final FileChannel channel) throws IOException {
         final var size = channel.size();
         if (size < Integer.BYTES * 2) { // magic + count
             throw new IOException("Invalid SSTable format: file is too small: " + size);
@@ -125,6 +100,6 @@ interface Table {
                 .slice()
                 .asReadOnlyBuffer();
 
-        return new SSTable(entriesCount, offsets, entries);
+        return new SSTableImpl(entriesCount, offsets, entries);
     }
 }

@@ -1,24 +1,5 @@
 package ru.mail.polis.dao.vaddya;
 
-import javax.annotation.concurrent.ThreadSafe;
-import java.io.File;
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
-import java.util.Optional;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-
 import com.google.common.collect.Iterators;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -26,22 +7,36 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Record;
 import ru.mail.polis.dao.DAO;
+import ru.mail.polis.dao.vaddya.flush.Flusher;
+import ru.mail.polis.dao.vaddya.flush.TableFlusher;
+import ru.mail.polis.dao.vaddya.memtable.MemTablePool;
+import ru.mail.polis.dao.vaddya.memtable.MemTablePoolImpl;
+import ru.mail.polis.dao.vaddya.naming.AtomicGenerationProvider;
+import ru.mail.polis.dao.vaddya.naming.BasicTableNaming;
+import ru.mail.polis.dao.vaddya.sstable.SSTable;
+import ru.mail.polis.dao.vaddya.sstable.SSTablePool;
+import ru.mail.polis.dao.vaddya.sstable.SSTablePoolImpl;
 
-import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.toList;
+import javax.annotation.concurrent.ThreadSafe;
+import java.io.File;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Set;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
+
 import static ru.mail.polis.dao.vaddya.IteratorUtils.collapseIterators;
-import static ru.mail.polis.dao.vaddya.IteratorUtils.collectIterators;
 
 @ThreadSafe
 public class DAOImpl implements DAO {
-    private static final String FINAL_SUFFIX = ".db";
-    private static final String TEMP_SUFFIX = ".tmp";
     private static final Logger log = LoggerFactory.getLogger(DAOImpl.class);
 
-    private final File root;
+    private final SSTablePool ssTablePool;
     private final MemTablePool memTablePool;
-    private final Map<Integer, Table> ssTables = new HashMap<>();
-    private final TableFlusher flusher = new TableFlusher(this);
+    private final Flusher flusher;
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     /**
@@ -53,10 +48,15 @@ public class DAOImpl implements DAO {
     public DAOImpl(
             @NotNull final File root,
             final long flushThresholdInBytes) {
-        this.root = root;
-        final var maxGeneration = openDirectory(root);
-        this.memTablePool = new MemTablePool(flusher, maxGeneration + 1, flushThresholdInBytes);
-        log.info("DAO was opened in directory {}, SSTables count={}", root, ssTables.size());
+        final var tableNaming = new BasicTableNaming(root);
+        this.flusher = new TableFlusher(tableNaming);
+        this.flusher.addListener(this::flushed);
+
+        final var generationProvider = new AtomicGenerationProvider();
+        this.ssTablePool = new SSTablePoolImpl(tableNaming, flusher, generationProvider);
+        this.memTablePool = new MemTablePoolImpl(generationProvider, flusher, flushThresholdInBytes);
+        
+        log.info("DAO was opened in directory {}, SSTables size={}", root, ssTablePool.currentSize());
     }
 
     @Override
@@ -79,7 +79,10 @@ public class DAOImpl implements DAO {
         final Collection<Iterator<TableEntry>> iterators;
         lock.readLock().lock();
         try {
-            iterators = collectIterators(memTablePool, ssTables.values(), from);
+            iterators = Set.of(
+                    memTablePool.iterator(from),
+                    ssTablePool.iterator(from)
+            );
         } finally {
             lock.readLock().unlock();
         }
@@ -138,156 +141,35 @@ public class DAOImpl implements DAO {
 
     @Override
     public void close() {
-        memTablePool.close();
-        flusher.close();
+        try {
+            memTablePool.close();
+            flusher.close();
+        } catch (IOException e) {
+            log.error("Error while closing DAO: {}", e.getMessage());
+        }
     }
 
     @Override
     public void compact() throws IOException {
-        final var tablesToCompact = getTablesToCompact();
-        final var tables = tablesToCompact.values();
-        final var generations = tablesToCompact.keySet();
+        ssTablePool.compact();
+    }
 
-        final var iterators = tables.stream()
-                .map(table -> table.iterator(ByteBufferUtils.emptyBuffer()))
-                .collect(toList());
-        final var iterator = collapseIterators(iterators);
-        final var alive = Iterators.filter(iterator, e -> !e.hasTombstone());
-
-        final Table compactedTable;
-        final int generation;
-        final Path path;
-        if (alive.hasNext()) { // if not only tombstones
-            generation = memTablePool.getAndIncrementGeneration();
-            path = flushEntries(generation, alive);
-            compactedTable = parseTable(path);
-        } else {
-            generation = 0;
-            path = null;
-            compactedTable = null;
-        }
-
+    /**
+     * Atomically remove table from the {@link MemTablePool}
+     * and add to the {@link SSTablePool}.
+     *
+     * @param generation generation of the flushed table
+     * @param ssTable    flushed table
+     */
+    private void flushed(
+            final int generation,
+            @NotNull final SSTable ssTable) {
         lock.writeLock().lock();
         try {
-            generations.forEach(ssTables::remove);
-            if (compactedTable == null) {
-                log.info("SSTables were collapsed into nothing");
-            } else {
-                ssTables.put(generation, compactedTable);
-                log.info("SSTables were compacted into {}", path);
-            }
+            memTablePool.flushed(generation);
+            ssTablePool.addTable(generation, ssTable);
         } finally {
             lock.writeLock().unlock();
-        }
-
-        generations.stream()
-                .map(this::pathToGeneration)
-                .forEach(DAOImpl::deleteCompactedFile);
-    }
-
-    private int openDirectory(@NotNull final File root) {
-        final var tableFiles = Optional.ofNullable(root.list())
-                .map(Arrays::asList)
-                .orElse(emptyList())
-                .stream()
-                .filter(s -> s.endsWith(FINAL_SUFFIX))
-                .collect(toList());
-        var maxGeneration = 0;
-        for (final var name : tableFiles) {
-            try {
-                final var generation = parseGeneration(name);
-                maxGeneration = Math.max(generation, maxGeneration);
-
-                final var path = Path.of(root.getAbsolutePath(), name);
-                final var table = parseTable(path);
-                this.ssTables.put(generation, table);
-            } catch (IllegalArgumentException e) {
-                log.error("Unable to parse generation from file {}: {}", name, e.getMessage());
-            } catch (IOException e) {
-                log.error("Unable to read table from file {}: {}", name, e.getMessage());
-            }
-        }
-        return maxGeneration;
-    }
-    
-    @NotNull
-    private Map<Integer, Table> getTablesToCompact() {
-        lock.readLock().lock();
-        try {
-            return new HashMap<>(ssTables); // NB: that are all SSTables for now
-        } finally {
-            lock.readLock().unlock();
-        }
-    }
-
-    void flushAndOpen(
-            final int generation,
-            @NotNull final Table table) {
-        try {
-            final var it = table.iterator(ByteBufferUtils.emptyBuffer());
-            final var path = flushEntries(generation, it);
-            final var ssTable = parseTable(path);
-
-            lock.writeLock().lock();
-            try {
-                memTablePool.flushed(generation);
-                ssTables.put(generation, ssTable);
-            } finally {
-                lock.writeLock().unlock();
-            }
-
-            log.info("Table {} was flushed to the disk into {}", generation, path);
-        } catch (IOException e) {
-            log.error("Flushing error: {}", e.getMessage());
-        }
-    }
-
-    @NotNull
-    private Path flushEntries(
-            final int generation,
-            @NotNull final Iterator<TableEntry> iterator) throws IOException {
-        final var tempPath = pathTo(generation + TEMP_SUFFIX);
-        try (var channel = FileChannel.open(tempPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-            Table.flushEntries(iterator, channel);
-        }
-
-        final var finalPath = pathTo(generation + FINAL_SUFFIX);
-        Files.move(tempPath, finalPath, StandardCopyOption.ATOMIC_MOVE);
-
-        return finalPath;
-    }
-
-    @NotNull
-    private Path pathToGeneration(final int generation) {
-        return pathTo(generation + FINAL_SUFFIX);
-    }
-
-    @NotNull
-    private Path pathTo(@NotNull final String name) {
-        return Path.of(root.getAbsolutePath(), name);
-    }
-
-    @NotNull
-    private static Table parseTable(@NotNull final Path path) throws IOException {
-        try (var channel = FileChannel.open(path, StandardOpenOption.READ)) {
-            return Table.from(channel);
-        }
-    }
-
-    private static int parseGeneration(@NotNull final String name) throws IllegalArgumentException {
-        if (name.length() <= FINAL_SUFFIX.length()) {
-            throw new IllegalArgumentException("File name is too short");
-        }
-        final var substring = name.substring(0, name.length() - FINAL_SUFFIX.length());
-        return Integer.parseInt(substring);
-    }
-
-    private static void deleteCompactedFile(@NotNull final Path path) {
-        try {
-            Files.delete(path);
-            log.debug("Table was removed during compaction: {}", path);
-        } catch (IOException e) {
-            log.error("Unable to remove file {} during compaction: {}", path, e.getMessage());
         }
     }
 }

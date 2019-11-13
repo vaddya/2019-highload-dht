@@ -1,6 +1,7 @@
-package ru.mail.polis.dao.vaddya;
+package ru.mail.polis.dao.vaddya.sstable;
 
 import org.jetbrains.annotations.NotNull;
+import ru.mail.polis.dao.vaddya.TableEntry;
 
 import javax.annotation.concurrent.ThreadSafe;
 import java.nio.ByteBuffer;
@@ -8,14 +9,12 @@ import java.nio.IntBuffer;
 import java.util.Iterator;
 
 @ThreadSafe
-final class SSTable implements Table {
-    static final int MAGIC = 0xCAFEFEED;
-
+public final class SSTableImpl implements SSTable {
     private final int entriesCount;
     private final IntBuffer offsets;
     private final ByteBuffer entries;
 
-    SSTable(
+    SSTableImpl(
             final int entriesCount,
             @NotNull final IntBuffer offsets,
             @NotNull final ByteBuffer entries) {
@@ -47,6 +46,14 @@ final class SSTable implements Table {
         return entries.limit();
     }
 
+    ByteBuffer lowest() {
+        return keyAt(0);
+    }
+    
+    ByteBuffer highest() {
+        return keyAt(entriesCount - 1);
+    }
+    
     private int position(@NotNull final ByteBuffer key) {
         var left = 0;
         var right = entriesCount - 1;

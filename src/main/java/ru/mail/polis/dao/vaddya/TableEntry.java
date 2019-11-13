@@ -24,20 +24,20 @@ public final class TableEntry implements Comparable<TableEntry> {
     private final long ts;
 
     @NotNull
-    static TableEntry upsert(
+    public static TableEntry upsert(
             @NotNull final ByteBuffer key,
             @NotNull final ByteBuffer value) {
         return new TableEntry(key, value, false, currentTimeNanos());
     }
 
     @NotNull
-    static TableEntry delete(
+    public static TableEntry delete(
             @NotNull final ByteBuffer key) {
         return new TableEntry(key, emptyBuffer(), true, currentTimeNanos());
     }
 
     @NotNull
-    static TableEntry from(
+    public static TableEntry from(
             @NotNull final ByteBuffer key,
             @Nullable final ByteBuffer value,
             final boolean hasTombstone,

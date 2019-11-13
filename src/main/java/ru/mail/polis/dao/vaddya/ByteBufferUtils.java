@@ -5,26 +5,26 @@ import org.jetbrains.annotations.NotNull;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-final class ByteBufferUtils {
+public final class ByteBufferUtils {
     private static final ByteBuffer EMPTY_BUFFER = ByteBuffer.allocate(0);
 
     private ByteBufferUtils() {
     }
 
     @NotNull
-    static ByteBuffer emptyBuffer() {
+    public static ByteBuffer emptyBuffer() {
         return EMPTY_BUFFER;
     }
 
     @NotNull
-    static ByteBuffer fromInt(final int value) {
+    public static ByteBuffer fromInt(final int value) {
         final var buffer = ByteBuffer.allocate(Integer.BYTES);
         buffer.putInt(value);
         return buffer.flip();
     }
 
     @NotNull
-    static ByteBuffer fromIntList(@NotNull final List<Integer> list) {
+    public static ByteBuffer fromIntList(@NotNull final List<Integer> list) {
         final var buffer = ByteBuffer.allocate(Integer.BYTES * list.size());
         list.forEach(buffer::putInt);
         return buffer.flip();
@@ -43,7 +43,7 @@ final class ByteBufferUtils {
      * </ul>
      */
     @NotNull
-    static ByteBuffer fromTableEntry(@NotNull final TableEntry entry) {
+    public static ByteBuffer fromTableEntry(@NotNull final TableEntry entry) {
         final var keySize = entry.getKey().remaining();
         if (entry.hasTombstone()) {
             return ByteBuffer.allocate(Integer.BYTES + keySize + Long.BYTES)

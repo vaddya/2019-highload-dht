@@ -1,42 +1,43 @@
-package ru.mail.polis.dao.vaddya;
+package ru.mail.polis.dao.vaddya.memtable;
+
+import org.jetbrains.annotations.NotNull;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import ru.mail.polis.dao.vaddya.TableEntry;
+import ru.mail.polis.dao.vaddya.flush.Flusher;
+import ru.mail.polis.dao.vaddya.naming.GenerationProvider;
 
 import javax.annotation.concurrent.ThreadSafe;
-import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import org.jetbrains.annotations.NotNull;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import static java.util.stream.Collectors.toList;
 import static ru.mail.polis.dao.vaddya.IteratorUtils.collapseIterators;
-import static ru.mail.polis.dao.vaddya.IteratorUtils.collectIterators;
 
 @ThreadSafe
-final class MemTablePool implements Table, Closeable {
-    private static final Logger log = LoggerFactory.getLogger(MemTablePool.class);
+public final class MemTablePoolImpl implements MemTablePool {
+    private static final Logger log = LoggerFactory.getLogger(MemTablePoolImpl.class);
 
+    private MemTable currentTable = new MemTableImpl();
+    private final Map<Integer, MemTable> pendingFlush = new TreeMap<>();
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
-    private Table currentTable = new MemTable();
-    private final Map<Integer, Table> pendingFlush = new TreeMap<>();
     private final AtomicBoolean stopped = new AtomicBoolean(false);
+    private final GenerationProvider generationProvider;
     private final Flusher flusher;
-    private final AtomicInteger currentGeneration;
     private final long flushThresholdInBytes;
 
-    MemTablePool(
+    public MemTablePoolImpl(
+            @NotNull final GenerationProvider generationProvider,
             @NotNull final Flusher flusher,
-            final int startGeneration,
             final long flushThresholdInBytes) {
         this.flusher = flusher;
-        this.currentGeneration = new AtomicInteger(startGeneration);
+        this.generationProvider = generationProvider;
         this.flushThresholdInBytes = flushThresholdInBytes;
     }
 
@@ -46,7 +47,11 @@ final class MemTablePool implements Table, Closeable {
         final Collection<Iterator<TableEntry>> iterators;
         lock.readLock().lock();
         try {
-            iterators = collectIterators(currentTable, pendingFlush.values(), from);
+            iterators = pendingFlush.values()
+                    .stream()
+                    .map(table -> table.iterator(from))
+                    .collect(toList());
+            iterators.add(currentTable.iterator(from));
         } finally {
             lock.readLock().unlock();
         }
@@ -111,7 +116,8 @@ final class MemTablePool implements Table, Closeable {
         }
     }
 
-    void flushed(final int generation) {
+    @Override
+    public void flushed(final int generation) {
         lock.writeLock().lock();
         try {
             pendingFlush.remove(generation);
@@ -120,19 +126,15 @@ final class MemTablePool implements Table, Closeable {
         }
     }
 
-    int getAndIncrementGeneration() {
-        return currentGeneration.getAndIncrement();
-    }
-
     private void enqueueToFlush() {
         lock.writeLock().lock();
         try {
             if (currentTable.currentSize() > flushThresholdInBytes) {
-                final var generation = currentGeneration.getAndIncrement();
+                final var generation = generationProvider.nextGeneration();
                 pendingFlush.put(generation, currentTable);
-                flusher.flush(generation, currentTable);
+                flusher.scheduleFlush(generation, currentTable);
                 log.debug("Table {} with size {} bytes was submitted to flush", generation, currentTable.currentSize());
-                currentTable = new MemTable();
+                currentTable = new MemTableImpl();
             }
         } finally {
             lock.writeLock().unlock();
@@ -149,8 +151,8 @@ final class MemTablePool implements Table, Closeable {
         lock.writeLock().lock();
         try {
             if (currentTable.currentSize() > 0) {
-                final var generation = currentGeneration.getAndIncrement();
-                flusher.flush(generation, currentTable);
+                final var generation = generationProvider.nextGeneration();
+                flusher.scheduleFlush(generation, currentTable);
                 log.debug("Table {} with size {} bytes was submitted to flush", generation, currentTable.currentSize());
             }
         } finally {
