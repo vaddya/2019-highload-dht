@@ -5,7 +5,7 @@ import org.jetbrains.annotations.NotNull;
 import java.nio.file.Path;
 import java.util.List;
 
-public interface TableNaming {
+public interface FileManager {
     @NotNull
     Path finalPathTo(int generation);
 

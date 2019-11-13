@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.vaddya.ByteBufferUtils;
 import ru.mail.polis.dao.vaddya.TableEntry;
 import ru.mail.polis.dao.vaddya.memtable.MemTable;
-import ru.mail.polis.dao.vaddya.naming.TableNaming;
+import ru.mail.polis.dao.vaddya.naming.FileManager;
 import ru.mail.polis.dao.vaddya.sstable.SSTable;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -28,13 +28,13 @@ public final class TableFlusher implements Flusher {
     private static final int THREAD_COUNT = 8;
     private static final Logger log = LoggerFactory.getLogger(TableFlusher.class);
 
-    private final TableNaming tableNaming;
+    private final FileManager fileManager;
     private final Executor executor;
     private final Collection<FlushListener> listeners = new CopyOnWriteArrayList<>();
     private final Phaser phaser = new Phaser(1); // one party for closing call
 
-    public TableFlusher(@NotNull final TableNaming tableNaming) {
-        this.tableNaming = tableNaming;
+    public TableFlusher(@NotNull final FileManager fileManager) {
+        this.fileManager = fileManager;
         final var threadFactory = new ThreadFactoryBuilder().setNameFormat("flusher-%d").build();
         this.executor = Executors.newFixedThreadPool(THREAD_COUNT, threadFactory);
     }
@@ -51,7 +51,7 @@ public final class TableFlusher implements Flusher {
             final int generation,
             @NotNull final MemTable memTable) {
         try {
-            final var it = memTable.iterator(ByteBufferUtils.emptyBuffer());
+            final var it = memTable.iterator();
             final var ssTable = flushEntries(generation, it);
             listeners.forEach(listener -> listener.flushed(generation, ssTable));
             log.info("Table {} was flushed to the disk", generation);
@@ -67,12 +67,12 @@ public final class TableFlusher implements Flusher {
     public SSTable flushEntries(
             final int generation,
             @NotNull final Iterator<TableEntry> iterator) throws IOException {
-        final var tempPath = tableNaming.tempPathTo(generation);
+        final var tempPath = fileManager.tempPathTo(generation);
         try (var channel = FileChannel.open(tempPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
             SSTable.flushEntries(iterator, channel);
         }
 
-        final var finalPath = tableNaming.finalPathTo(generation);
+        final var finalPath = fileManager.finalPathTo(generation);
         Files.move(tempPath, finalPath, StandardCopyOption.ATOMIC_MOVE);
 
         try (var channel = FileChannel.open(finalPath, StandardOpenOption.READ)) {

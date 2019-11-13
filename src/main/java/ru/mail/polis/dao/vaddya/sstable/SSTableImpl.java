@@ -46,11 +46,15 @@ public final class SSTableImpl implements SSTable {
         return entries.limit();
     }
 
-    ByteBuffer lowest() {
+    @Override
+    @NotNull
+    public ByteBuffer lowest() {
         return keyAt(0);
     }
-    
-    ByteBuffer highest() {
+
+    @Override
+    @NotNull
+    public ByteBuffer highest() {
         return keyAt(entriesCount - 1);
     }
     

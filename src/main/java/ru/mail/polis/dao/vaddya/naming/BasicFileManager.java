@@ -13,13 +13,13 @@ import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 @ThreadSafe
-public class BasicTableNaming implements TableNaming {
+public class BasicFileManager implements FileManager {
     private static final String FINAL_SUFFIX = ".db";
     private static final String TEMP_SUFFIX = ".tmp";
 
     private final File root;
 
-    public BasicTableNaming(@NotNull final File root) {
+    public BasicFileManager(@NotNull final File root) {
         this.root = root;
     }
 

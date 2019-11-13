@@ -1,6 +1,5 @@
 package ru.mail.polis.dao.vaddya;
 
-import com.google.common.collect.Iterators;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.slf4j.Logger;
@@ -12,7 +11,7 @@ import ru.mail.polis.dao.vaddya.flush.TableFlusher;
 import ru.mail.polis.dao.vaddya.memtable.MemTablePool;
 import ru.mail.polis.dao.vaddya.memtable.MemTablePoolImpl;
 import ru.mail.polis.dao.vaddya.naming.AtomicGenerationProvider;
-import ru.mail.polis.dao.vaddya.naming.BasicTableNaming;
+import ru.mail.polis.dao.vaddya.naming.BasicFileManager;
 import ru.mail.polis.dao.vaddya.sstable.SSTable;
 import ru.mail.polis.dao.vaddya.sstable.SSTablePool;
 import ru.mail.polis.dao.vaddya.sstable.SSTablePoolImpl;
@@ -27,8 +26,6 @@ import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-
-import static ru.mail.polis.dao.vaddya.IteratorUtils.collapseIterators;
 
 @ThreadSafe
 public class DAOImpl implements DAO {
@@ -48,14 +45,14 @@ public class DAOImpl implements DAO {
     public DAOImpl(
             @NotNull final File root,
             final long flushThresholdInBytes) {
-        final var tableNaming = new BasicTableNaming(root);
+        final var tableNaming = new BasicFileManager(root);
         this.flusher = new TableFlusher(tableNaming);
         this.flusher.addListener(this::flushed);
 
         final var generationProvider = new AtomicGenerationProvider();
         this.ssTablePool = new SSTablePoolImpl(tableNaming, flusher, generationProvider);
         this.memTablePool = new MemTablePoolImpl(generationProvider, flusher, flushThresholdInBytes);
-        
+
         log.info("DAO was opened in directory {}, SSTables size={}", root, ssTablePool.currentSize());
     }
 
@@ -63,8 +60,8 @@ public class DAOImpl implements DAO {
     @NotNull
     public Iterator<Record> iterator(@NotNull final ByteBuffer from) {
         final var iterator = entryIterator(from);
-        final var alive = Iterators.filter(iterator, e -> !e.hasTombstone());
-        return Iterators.transform(alive, e -> Record.of(e.getKey(), e.getValue()));
+        final var alive = IteratorUtils.aliveEntries(iterator);
+        return IteratorUtils.toRecords(alive);
     }
 
     /**
@@ -86,7 +83,7 @@ public class DAOImpl implements DAO {
         } finally {
             lock.readLock().unlock();
         }
-        return collapseIterators(iterators);
+        return IteratorUtils.collapseIterators(iterators);
     }
 
     @Override

@@ -1,11 +1,12 @@
 package ru.mail.polis.dao.vaddya.memtable;
 
 import org.jetbrains.annotations.NotNull;
+import ru.mail.polis.dao.vaddya.Table;
 import ru.mail.polis.dao.vaddya.sstable.SSTable;
 
 import java.nio.ByteBuffer;
 
-public interface MemTable extends SSTable {
+public interface MemTable extends Table {
     /**
      * Insert a value into the table using the given key.
      */

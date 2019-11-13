@@ -2,6 +2,7 @@ package ru.mail.polis.dao.vaddya;
 
 import com.google.common.collect.Iterators;
 import org.jetbrains.annotations.NotNull;
+import ru.mail.polis.Record;
 import ru.mail.polis.dao.Iters;
 import ru.mail.polis.dao.vaddya.sstable.SSTable;
 
@@ -21,11 +22,21 @@ public final class IteratorUtils {
     }
 
     @NotNull
+    public static Iterator<TableEntry> aliveEntries(@NotNull final Iterator<TableEntry> iterator) {
+        return Iterators.filter(iterator, e -> !e.hasTombstone());
+    }
+    
+    @NotNull
     public static Iterator<TableEntry> aliveEntries(@NotNull final Collection<SSTable> tables) {
         final var iterators = tables.stream()
-                .map(table -> table.iterator(ByteBufferUtils.emptyBuffer()))
+                .map(SSTable::iterator)
                 .collect(toList());
         final var iterator = collapseIterators(iterators);
-        return Iterators.filter(iterator, e -> !e.hasTombstone());
+        return aliveEntries(iterator);
+    }
+
+    @NotNull
+    public static Iterator<Record> toRecords(@NotNull final Iterator<TableEntry> iterator) {
+        return Iterators.transform(iterator, e -> Record.of(e.getKey(), e.getValue()));
     }
 }

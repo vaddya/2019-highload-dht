@@ -2,6 +2,7 @@ package ru.mail.polis.dao.vaddya.sstable;
 
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.vaddya.ByteBufferUtils;
+import ru.mail.polis.dao.vaddya.Table;
 import ru.mail.polis.dao.vaddya.TableEntry;
 
 import java.io.IOException;
@@ -13,19 +14,18 @@ import java.util.Iterator;
 import static java.nio.ByteOrder.BIG_ENDIAN;
 import static java.nio.channels.FileChannel.MapMode.READ_ONLY;
 
-public interface SSTable {
+public interface SSTable extends Table {
     int MAGIC = 0xCAFEFEED;
 
-    /**
-     * Get iterator over the table entries starting from the given key.
-     */
     @NotNull
-    Iterator<TableEntry> iterator(@NotNull ByteBuffer from);
+    default ByteBuffer lowest() {
+        throw new UnsupportedOperationException();
+    }
 
-    /**
-     * Get current size of the table entries in bytes.
-     */
-    int currentSize();
+    @NotNull
+    default ByteBuffer highest() {
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Flush table entries to the specified channel.

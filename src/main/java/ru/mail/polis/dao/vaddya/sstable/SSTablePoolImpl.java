@@ -7,7 +7,7 @@ import ru.mail.polis.dao.vaddya.IteratorUtils;
 import ru.mail.polis.dao.vaddya.TableEntry;
 import ru.mail.polis.dao.vaddya.flush.Flusher;
 import ru.mail.polis.dao.vaddya.naming.GenerationProvider;
-import ru.mail.polis.dao.vaddya.naming.TableNaming;
+import ru.mail.polis.dao.vaddya.naming.FileManager;
 
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
@@ -24,30 +24,29 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static java.util.stream.Collectors.toList;
-import static ru.mail.polis.dao.vaddya.IteratorUtils.aliveEntries;
 
 @ThreadSafe
 public final class SSTablePoolImpl implements SSTablePool {
     private static final Logger log = LoggerFactory.getLogger(SSTablePoolImpl.class);
 
-    private final TableNaming tableNaming;
+    private final FileManager fileManager;
     private final GenerationProvider generationProvider;
     private final Flusher flusher;
     private final Map<Integer, SSTable> tables;
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
     public SSTablePoolImpl(
-            @NotNull final TableNaming tableNaming,
+            @NotNull final FileManager fileManager,
             @NotNull final Flusher flusher,
             @NotNull final GenerationProvider generationProvider) {
-        this.tableNaming = tableNaming;
+        this.fileManager = fileManager;
         this.flusher = flusher;
         this.generationProvider = generationProvider;
 
         this.tables = new TreeMap<>();
-        for (final var path : tableNaming.tables()) {
+        for (final var path : fileManager.tables()) {
             try {
-                final var generation = tableNaming.generationFromPath(path);
+                final var generation = fileManager.generationFromPath(path);
                 try (var channel = FileChannel.open(path, StandardOpenOption.READ)) {
                     final var table = SSTable.from(channel);
                     tables.put(generation, table);
@@ -128,7 +127,7 @@ public final class SSTablePoolImpl implements SSTablePool {
         }
         final var tables = tablesToCompact.values();
         final var generations = tablesToCompact.keySet();
-        final var alive = aliveEntries(tables);
+        final var alive = IteratorUtils.aliveEntries(tables);
 
         final SSTable compactedTable;
         final int generation;
@@ -154,7 +153,7 @@ public final class SSTablePoolImpl implements SSTablePool {
         }
 
         generations.stream()
-                .map(tableNaming::finalPathTo)
+                .map(fileManager::finalPathTo)
                 .forEach(SSTablePoolImpl::deleteCompactedFile);
     }
 

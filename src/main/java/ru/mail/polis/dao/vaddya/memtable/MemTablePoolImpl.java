@@ -77,7 +77,7 @@ public final class MemTablePoolImpl implements MemTablePool {
             @NotNull final ByteBuffer key,
             @NotNull final ByteBuffer value) {
         if (stopped.get()) {
-            throw new IllegalStateException("Mem table was already closed");
+            throw new IllegalStateException("MemTable was already closed");
         }
         lock.readLock().lock();
         try {
@@ -93,7 +93,7 @@ public final class MemTablePoolImpl implements MemTablePool {
     @Override
     public void remove(@NotNull final ByteBuffer key) {
         if (stopped.get()) {
-            throw new IllegalStateException("Mem table was already closed");
+            throw new IllegalStateException("MemTable was already closed");
         }
         lock.readLock().lock();
         try {
