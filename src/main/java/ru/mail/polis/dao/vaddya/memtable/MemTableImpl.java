@@ -22,8 +22,13 @@ final class MemTableImpl implements MemTable {
     }
 
     @Override
-    public int currentSize() {
+    public long sizeInBytes() {
         return currentSize.get();
+    }
+
+    @Override
+    public int count() {
+        return table.size();
     }
 
     @Override

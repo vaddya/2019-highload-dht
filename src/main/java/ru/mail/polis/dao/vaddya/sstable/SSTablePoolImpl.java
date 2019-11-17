@@ -6,8 +6,8 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.dao.vaddya.IteratorUtils;
 import ru.mail.polis.dao.vaddya.TableEntry;
 import ru.mail.polis.dao.vaddya.flush.Flusher;
-import ru.mail.polis.dao.vaddya.naming.GenerationProvider;
 import ru.mail.polis.dao.vaddya.naming.FileManager;
+import ru.mail.polis.dao.vaddya.naming.GenerationProvider;
 
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
@@ -16,15 +16,18 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.HashMap;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static java.util.stream.Collectors.toList;
+import static ru.mail.polis.dao.vaddya.IteratorUtils.toCollapsedMergedIterator;
 
+/**
+ * SSTable pool without background compaction process.
+ */
 @ThreadSafe
 public final class SSTablePoolImpl implements SSTablePool {
     private static final Logger log = LoggerFactory.getLogger(SSTablePoolImpl.class);
@@ -44,11 +47,13 @@ public final class SSTablePoolImpl implements SSTablePool {
         this.generationProvider = generationProvider;
 
         this.tables = new TreeMap<>();
-        for (final var path : fileManager.tables()) {
+        var maxGeneration = 0;
+        for (final var path : fileManager.listTables()) {
             try {
                 final var generation = fileManager.generationFromPath(path);
+                maxGeneration = Math.max(maxGeneration, generation);
                 try (var channel = FileChannel.open(path, StandardOpenOption.READ)) {
-                    final var table = SSTable.from(channel);
+                    final var table = SSTable.open(channel);
                     tables.put(generation, table);
                 }
             } catch (IllegalArgumentException e) {
@@ -58,40 +63,53 @@ public final class SSTablePoolImpl implements SSTablePool {
             }
         }
 
-        final var maxGeneration = this.tables.keySet()
-                .stream()
-                .max(Integer::compareTo)
-                .orElse(0);
         this.generationProvider.setNextGeneration(maxGeneration + 1);
     }
 
     @Override
     @NotNull
     public Iterator<TableEntry> iterator(@NotNull final ByteBuffer from) {
-        final List<Iterator<TableEntry>> iterators;
-        lock.readLock().lock();
-        try {
-            iterators = tables.values()
-                    .stream()
-                    .map(table -> table.iterator(from))
-                    .collect(toList());
-        } finally {
-            lock.readLock().unlock();
-        }
-        return IteratorUtils.collapseIterators(iterators);
-    }
-
-    @Override
-    public int currentSize() {
         lock.readLock().lock();
         try {
             return tables.values()
                     .stream()
-                    .mapToInt(SSTable::currentSize)
+                    .map(table -> table.iterator(from))
+                    .collect(toCollapsedMergedIterator());
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public long sizeInBytes() {
+        lock.readLock().lock();
+        try {
+            return tables.values()
+                    .stream()
+                    .mapToLong(SSTable::sizeInBytes)
                     .sum();
         } finally {
             lock.readLock().unlock();
         }
+    }
+
+    @Override
+    public int count() {
+        lock.readLock().lock();
+        try {
+            return tables.values()
+                    .stream()
+                    .mapToInt(SSTable::count)
+                    .sum();
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    @NotNull
+    @Override
+    public Map<Integer, SSTable> tables() {
+        return new HashMap<>(tables);
     }
 
     @Override
@@ -129,23 +147,23 @@ public final class SSTablePoolImpl implements SSTablePool {
         final var generations = tablesToCompact.keySet();
         final var alive = IteratorUtils.aliveEntries(tables);
 
-        final SSTable compactedTable;
+        final SSTable ssTable;
         final int generation;
         if (alive.hasNext()) { // if not only tombstones
             generation = generationProvider.nextGeneration();
-            compactedTable = flusher.flushEntries(generation, alive);
+            ssTable = flusher.flushEntries(generation, alive);
         } else {
             generation = 0;
-            compactedTable = null;
+            ssTable = null;
         }
 
         lock.writeLock().lock();
         try {
             generations.forEach(this::removeTable);
-            if (compactedTable == null) {
+            if (ssTable == null) {
                 log.info("SSTables were collapsed into nothing");
             } else {
-                addTable(generation, compactedTable);
+                addTable(generation, ssTable);
                 log.info("SSTables were compacted");
             }
         } finally {

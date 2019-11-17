@@ -27,6 +27,7 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.NoSuchElementException;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -37,7 +38,16 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class CompactionTest extends TestBase {
     @Test
-    void overwrite(@TempDir File data) throws IOException {
+    void overwriteAndCompactExplicitly(@TempDir File data) throws IOException {
+        overwrite(data, true);
+    }
+
+    @Test
+    void overwriteAndCompactImplicitly(@TempDir File data) throws IOException {
+        overwrite(data, false);
+    }
+
+    private void overwrite(File data, boolean compactExplicitly) throws IOException {
         // Reference value
         final int valueSize = 1024 * 1024;
         final int keyCount = 10;
@@ -65,7 +75,15 @@ class CompactionTest extends TestBase {
             }
 
             // Compact
-            dao.compact();
+            if (compactExplicitly) {
+                dao.compact();
+            } else {
+                try {
+                    TimeUnit.SECONDS.sleep(5);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
 
             // Check the contents
             for (final ByteBuffer key : keys) {
@@ -128,6 +146,7 @@ class CompactionTest extends TestBase {
         // Check store size
         final long size = Files.directorySize(data);
 
+        System.out.println("size = " + size);
         // Heuristic
         assertTrue(size < valueSize);
     }

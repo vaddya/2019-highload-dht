@@ -14,7 +14,12 @@ public interface Table {
     /**
      * Get current size of the table entries in bytes.
      */
-    int currentSize();
+    long sizeInBytes();
+
+    /**
+     * Get number of entries in the table.
+     */
+    int count();
 
     /**
      * Get iterator over the table entries starting from the given key.
@@ -35,7 +40,7 @@ public interface Table {
     @NotNull
     default Iterator<TableEntry> range(
             @NotNull ByteBuffer from,
-            @Nullable ByteBuffer to) throws IOException {
+            @Nullable ByteBuffer to) {
         if (to == null) {
             return iterator(from);
         }

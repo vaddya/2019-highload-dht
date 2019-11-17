@@ -1,6 +1,7 @@
 package ru.mail.polis.dao.vaddya.sstable;
 
 import org.jetbrains.annotations.NotNull;
+import ru.mail.polis.dao.Iters;
 import ru.mail.polis.dao.vaddya.TableEntry;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -9,15 +10,18 @@ import java.nio.IntBuffer;
 import java.util.Iterator;
 
 @ThreadSafe
-public final class SSTableImpl implements SSTable {
+final class SSTableImpl implements SSTable {
+    private final long sizeInBytes;
     private final int entriesCount;
     private final IntBuffer offsets;
     private final ByteBuffer entries;
 
     SSTableImpl(
+            final long sizeInBytes,
             final int entriesCount,
             @NotNull final IntBuffer offsets,
             @NotNull final ByteBuffer entries) {
+        this.sizeInBytes = sizeInBytes;
         this.entriesCount = entriesCount;
         this.entries = entries;
         this.offsets = offsets;
@@ -26,8 +30,11 @@ public final class SSTableImpl implements SSTable {
     @Override
     @NotNull
     public Iterator<TableEntry> iterator(@NotNull final ByteBuffer from) {
+        if (from.compareTo(highest()) > 0) {
+            return Iters.empty();
+        }
         return new Iterator<>() {
-            private int position = position(from);
+            private int position = from.remaining() == 0 ? 0 : position(from);
 
             @Override
             public boolean hasNext() {
@@ -42,8 +49,13 @@ public final class SSTableImpl implements SSTable {
     }
 
     @Override
-    public int currentSize() {
-        return entries.limit();
+    public long sizeInBytes() {
+        return sizeInBytes;
+    }
+
+    @Override
+    public int count() {
+        return entriesCount;
     }
 
     @Override
@@ -113,5 +125,10 @@ public final class SSTableImpl implements SSTable {
                 .slice();
 
         return TableEntry.from(key, value, false, ts);
+    }
+
+    @Override
+    public String toString() {
+        return "SSTableImpl{size=" + sizeInBytes + ", count=" + count() + ", [" + lowest().get() + ", " + highest().get() + "]}";
     }
 }

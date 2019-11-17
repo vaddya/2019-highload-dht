@@ -11,10 +11,10 @@ import ru.mail.polis.dao.vaddya.flush.TableFlusher;
 import ru.mail.polis.dao.vaddya.memtable.MemTablePool;
 import ru.mail.polis.dao.vaddya.memtable.MemTablePoolImpl;
 import ru.mail.polis.dao.vaddya.naming.AtomicGenerationProvider;
-import ru.mail.polis.dao.vaddya.naming.BasicFileManager;
+import ru.mail.polis.dao.vaddya.naming.LeveledFileManagerImpl;
+import ru.mail.polis.dao.vaddya.sstable.leveled.LeveledSSTablePoolImpl;
 import ru.mail.polis.dao.vaddya.sstable.SSTable;
 import ru.mail.polis.dao.vaddya.sstable.SSTablePool;
-import ru.mail.polis.dao.vaddya.sstable.SSTablePoolImpl;
 
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.File;
@@ -45,15 +45,19 @@ public class DAOImpl implements DAO {
     public DAOImpl(
             @NotNull final File root,
             final long flushThresholdInBytes) {
-        final var tableNaming = new BasicFileManager(root);
-        this.flusher = new TableFlusher(tableNaming);
-        this.flusher.addListener(this::flushed);
-
+        final var fileManager = new LeveledFileManagerImpl(root);
         final var generationProvider = new AtomicGenerationProvider();
-        this.ssTablePool = new SSTablePoolImpl(tableNaming, flusher, generationProvider);
-        this.memTablePool = new MemTablePoolImpl(generationProvider, flusher, flushThresholdInBytes);
+        
+        this.flusher = new TableFlusher(fileManager);
+        this.flusher.addListener(this::flushed);
+        this.memTablePool = new MemTablePoolImpl(flushThresholdInBytes, generationProvider, flusher);
 
-        log.info("DAO was opened in directory {}, SSTables size={}", root, ssTablePool.currentSize());
+        final var compactionThresholdInBytes = 4 * flushThresholdInBytes;
+        final var targetTableSizeInBytes = 2 * flushThresholdInBytes;
+        this.ssTablePool = new LeveledSSTablePoolImpl(compactionThresholdInBytes, targetTableSizeInBytes, fileManager, 
+                generationProvider);
+
+        log.info("DAO was opened in directory {}, SSTablePool: {}", root, ssTablePool);
     }
 
     @Override
@@ -140,6 +144,7 @@ public class DAOImpl implements DAO {
     public void close() {
         try {
             memTablePool.close();
+            ssTablePool.close();
             flusher.close();
         } catch (IOException e) {
             log.error("Error while closing DAO: {}", e.getMessage());
@@ -165,6 +170,8 @@ public class DAOImpl implements DAO {
         try {
             memTablePool.flushed(generation);
             ssTablePool.addTable(generation, ssTable);
+        } catch (IOException e) {
+            log.error("Flushed error: {}", e.getMessage(), e);
         } finally {
             lock.writeLock().unlock();
         }

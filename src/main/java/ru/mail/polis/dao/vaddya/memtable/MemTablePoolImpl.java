@@ -3,6 +3,7 @@ package ru.mail.polis.dao.vaddya.memtable;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.mail.polis.dao.vaddya.Table;
 import ru.mail.polis.dao.vaddya.TableEntry;
 import ru.mail.polis.dao.vaddya.flush.Flusher;
 import ru.mail.polis.dao.vaddya.naming.GenerationProvider;
@@ -28,17 +29,17 @@ public final class MemTablePoolImpl implements MemTablePool {
     private final Map<Integer, MemTable> pendingFlush = new TreeMap<>();
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final AtomicBoolean stopped = new AtomicBoolean(false);
+    private final long flushThresholdInBytes;
     private final GenerationProvider generationProvider;
     private final Flusher flusher;
-    private final long flushThresholdInBytes;
 
     public MemTablePoolImpl(
+            final long flushThresholdInBytes,
             @NotNull final GenerationProvider generationProvider,
-            @NotNull final Flusher flusher,
-            final long flushThresholdInBytes) {
+            @NotNull final Flusher flusher) {
+        this.flushThresholdInBytes = flushThresholdInBytes;
         this.flusher = flusher;
         this.generationProvider = generationProvider;
-        this.flushThresholdInBytes = flushThresholdInBytes;
     }
 
     @Override
@@ -59,14 +60,26 @@ public final class MemTablePoolImpl implements MemTablePool {
     }
 
     @Override
-    public int currentSize() {
+    public long sizeInBytes() {
         lock.readLock().lock();
         try {
-            var size = currentTable.currentSize();
-            for (final var table : pendingFlush.values()) {
-                size += table.currentSize();
-            }
-            return size;
+            return currentTable.sizeInBytes() + pendingFlush.values()
+                    .stream()
+                    .mapToLong(Table::sizeInBytes)
+                    .sum();
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    @Override
+    public int count() {
+        lock.readLock().lock();
+        try {
+            return currentTable.count() + pendingFlush.values()
+                    .stream()
+                    .mapToInt(Table::count)
+                    .sum();
         } finally {
             lock.readLock().unlock();
         }
@@ -85,7 +98,7 @@ public final class MemTablePoolImpl implements MemTablePool {
         } finally {
             lock.readLock().unlock();
         }
-        if (currentTable.currentSize() > flushThresholdInBytes) { // to avoid extra call & lock
+        if (currentTable.sizeInBytes() > flushThresholdInBytes) { // to avoid extra call & lock
             enqueueToFlush();
         }
     }
@@ -101,7 +114,7 @@ public final class MemTablePoolImpl implements MemTablePool {
         } finally {
             lock.readLock().unlock();
         }
-        if (currentTable.currentSize() > flushThresholdInBytes) { // to avoid extra call & lock
+        if (currentTable.sizeInBytes() > flushThresholdInBytes) { // to avoid extra call & lock
             enqueueToFlush();
         }
     }
@@ -129,11 +142,11 @@ public final class MemTablePoolImpl implements MemTablePool {
     private void enqueueToFlush() {
         lock.writeLock().lock();
         try {
-            if (currentTable.currentSize() > flushThresholdInBytes) {
+            if (currentTable.sizeInBytes() > flushThresholdInBytes) {
                 final var generation = generationProvider.nextGeneration();
                 pendingFlush.put(generation, currentTable);
                 flusher.scheduleFlush(generation, currentTable);
-                log.debug("Table {} with size {} bytes was submitted to flush", generation, currentTable.currentSize());
+                log.debug("Table {} with size {} bytes was submitted to flush", generation, currentTable.sizeInBytes());
                 currentTable = new MemTableImpl();
             }
         } finally {
@@ -150,10 +163,10 @@ public final class MemTablePoolImpl implements MemTablePool {
         log.debug("Closing MemTablePool");
         lock.writeLock().lock();
         try {
-            if (currentTable.currentSize() > 0) {
+            if (currentTable.sizeInBytes() > 0) {
                 final var generation = generationProvider.nextGeneration();
                 flusher.scheduleFlush(generation, currentTable);
-                log.debug("Table {} with size {} bytes was submitted to flush", generation, currentTable.currentSize());
+                log.debug("Table {} with size {} bytes was submitted to flush", generation, currentTable.sizeInBytes());
             }
         } finally {
             lock.writeLock().unlock();

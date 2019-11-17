@@ -8,6 +8,10 @@ import ru.mail.polis.dao.vaddya.TableEntry;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -17,15 +21,17 @@ import static java.nio.channels.FileChannel.MapMode.READ_ONLY;
 public interface SSTable extends Table {
     int MAGIC = 0xCAFEFEED;
 
+    /**
+     * Get the lowest key in the table.
+     */
     @NotNull
-    default ByteBuffer lowest() {
-        throw new UnsupportedOperationException();
-    }
+    ByteBuffer lowest();
 
+    /**
+     * Get the highest key in the table.
+     */
     @NotNull
-    default ByteBuffer highest() {
-        throw new UnsupportedOperationException();
-    }
+    ByteBuffer highest();
 
     /**
      * Flush table entries to the specified channel.
@@ -35,13 +41,13 @@ public interface SSTable extends Table {
      * <li> Table entries (mapped to bytes using ByteBufferUtils.fromTableEntry)
      * <li> List of offsets (represented by int value), one for each entry
      * <li> Number of entries (represented by int value)
-     * <li> Magic number in the end of the file (int Table.MAGIC)
+     * <li> Magic number in the end of the file (int SSTable.MAGIC)
      * </ul>
      *
      * @param channel channel to write entries to
      * @throws IOException if cannot write data
      */
-    static void flushEntries(
+    static void flush(
             @NotNull final Iterator<TableEntry> entries,
             @NotNull final FileChannel channel) throws IOException {
         final var offsets = new ArrayList<Integer>();
@@ -61,17 +67,19 @@ public interface SSTable extends Table {
 
         final var magicBuffer = ByteBufferUtils.fromInt(SSTable.MAGIC);
         channel.write(magicBuffer);
+
+        channel.force(true);
     }
 
     /**
      * Read table from the specified channel.
      *
      * @param channel channel to read entries from
-     * @return a table instance
+     * @return a SSTable instance
      * @throws IOException if cannot read data or table format is invalid
      */
     @NotNull
-    static SSTable from(@NotNull final FileChannel channel) throws IOException {
+    static SSTable open(@NotNull final FileChannel channel) throws IOException {
         final var size = channel.size();
         if (size < Integer.BYTES * 2) { // magic + count
             throw new IOException("Invalid SSTable format: file is too small: " + size);
@@ -100,6 +108,29 @@ public interface SSTable extends Table {
                 .slice()
                 .asReadOnlyBuffer();
 
-        return new SSTableImpl(entriesCount, offsets, entries);
+        return new SSTableImpl(size, entriesCount, offsets, entries);
+    }
+
+    /**
+     * Combination of {@code flush} and {@code open} methods.
+     *
+     * @param iterator  entries iterator
+     * @param tempPath  temporary path
+     * @param finalPath final path
+     * @return a SSTable instance
+     * @throws IOException if cannot read/write data or table format is invalid
+     */
+    @NotNull
+    static SSTable flushAndOpen(
+            @NotNull final Iterator<TableEntry> iterator,
+            @NotNull final Path tempPath,
+            @NotNull final Path finalPath) throws IOException {
+        try (var channel = FileChannel.open(tempPath, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
+            flush(iterator, channel);
+        }
+        Files.move(tempPath, finalPath, StandardCopyOption.ATOMIC_MOVE);
+        try (var channel = FileChannel.open(finalPath, StandardOpenOption.READ)) {
+            return open(channel);
+        }
     }
 }

@@ -25,14 +25,14 @@ public class BasicFileManager implements FileManager {
 
     @Override
     @NotNull
-    public Path finalPathTo(final int generation) {
-        return pathTo(generation + FINAL_SUFFIX);
-    }
-
-    @Override
-    @NotNull
     public Path tempPathTo(final int generation) {
         return pathTo(generation + TEMP_SUFFIX);
+    }
+    
+    @Override
+    @NotNull
+    public Path finalPathTo(final int generation) {
+        return pathTo(generation + FINAL_SUFFIX);
     }
 
     @Override
@@ -47,7 +47,7 @@ public class BasicFileManager implements FileManager {
 
     @Override
     @NotNull
-    public List<Path> tables() {
+    public List<Path> listTables() {
         return Optional.ofNullable(root.list())
                 .map(Arrays::asList)
                 .orElse(emptyList())

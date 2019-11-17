@@ -7,13 +7,13 @@ import java.util.List;
 
 public interface FileManager {
     @NotNull
-    Path finalPathTo(int generation);
+    Path tempPathTo(int generation);
 
     @NotNull
-    Path tempPathTo(int generation);
+    Path finalPathTo(int generation);
 
     int generationFromPath(@NotNull Path path);
 
     @NotNull
-    List<Path> tables();
+    List<Path> listTables();
 }
