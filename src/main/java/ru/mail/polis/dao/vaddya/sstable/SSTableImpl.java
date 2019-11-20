@@ -11,6 +11,8 @@ import java.util.Iterator;
 
 @ThreadSafe
 final class SSTableImpl implements SSTable {
+    static int MAGIC = 0xCAFEFEED;
+
     private final long sizeInBytes;
     private final int entriesCount;
     private final IntBuffer offsets;
@@ -69,7 +71,7 @@ final class SSTableImpl implements SSTable {
     public ByteBuffer highest() {
         return keyAt(entriesCount - 1);
     }
-    
+
     private int position(@NotNull final ByteBuffer key) {
         var left = 0;
         var right = entriesCount - 1;
@@ -129,6 +131,7 @@ final class SSTableImpl implements SSTable {
 
     @Override
     public String toString() {
-        return "SSTableImpl{size=" + sizeInBytes + ", count=" + count() + ", [" + lowest().get() + ", " + highest().get() + "]}";
+        return "SSTableImpl{size=" + sizeInBytes + ", count=" + count()
+                + ", [" + lowest().get() + ", " + highest().get() + "]}";
     }
 }

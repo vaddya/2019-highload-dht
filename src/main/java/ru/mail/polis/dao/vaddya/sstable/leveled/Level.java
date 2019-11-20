@@ -19,7 +19,14 @@ import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.util.*;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.NavigableSet;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -54,7 +61,7 @@ final class Level implements SSTablePool {
             @NotNull final SSTable table) {
         lock.writeLock().lock();
         try {
-            tables.add(RangedSSTable.of(generation, table));
+            tables.add(RangedSSTable.from(generation, table));
             log.debug("T{} is added to L{}", generation, index);
         } finally {
             lock.writeLock().unlock();
@@ -66,7 +73,7 @@ final class Level implements SSTablePool {
         try {
             tables.entrySet()
                     .stream()
-                    .map(e -> RangedSSTable.of(e.getKey(), e.getValue()))
+                    .map(e -> RangedSSTable.from(e.getKey(), e.getValue()))
                     .forEach(this.tables::add);
             log.debug("Tables {} are added to L{}", tables.keySet(), index);
         } finally {
@@ -78,7 +85,7 @@ final class Level implements SSTablePool {
     public void removeTable(final int generation) {
         lock.writeLock().lock();
         try {
-            tables.remove(RangedSSTable.generation(generation));
+            tables.remove(RangedSSTable.fromGeneration(generation));
             log.debug("T{} is removed from L{}", generation, index);
         } finally {
             lock.writeLock().unlock();
@@ -91,7 +98,7 @@ final class Level implements SSTablePool {
         lock.writeLock().lock();
         try {
             generations.stream()
-                    .map(RangedSSTable::generation)
+                    .map(RangedSSTable::fromGeneration)
                     .forEach(tables::remove);
             log.debug("Tables {} are removed from L{}", generations, index);
         } finally {
@@ -128,7 +135,7 @@ final class Level implements SSTablePool {
     Map<Integer, SSTable> mergeWith(@NotNull final SSTable table) throws IOException {
         final var totalEntriesCount = table.count() + count();
         final var totalSizeInBytes = table.sizeInBytes() + sizeInBytes();
-        final var tableCount = totalSizeInBytes / getTargetTableSizeInBytes();
+        final var tableCount = Math.max(totalSizeInBytes / getTargetTableSizeInBytes(), 1);
         final var entriesPerTable = (int) (totalEntriesCount / tableCount);
 
         return tables.isEmpty()
@@ -141,14 +148,8 @@ final class Level implements SSTablePool {
             @NotNull final SSTable table,
             final int entriesPerTable) throws IOException {
         final var result = new HashMap<Integer, SSTable>();
-        final var it = table.iterator();
-        while (it.hasNext()) {
-            final var generation = generationProvider.nextGeneration();
-            final var itLimited = Iterators.limit(it, entriesPerTable);
-            final SSTable ssTable = flush(generation, itLimited);
-            result.put(generation, ssTable);
-            log.info("Entries flushed without merge with L{} into T{}: {}", index, generation, ssTable);
-        }
+        final var iterator = table.iterator();
+        flushEntries(iterator, entriesPerTable, result);
         return result;
     }
 
@@ -162,35 +163,17 @@ final class Level implements SSTablePool {
         final var levelLowest = lowest();
         final var levelHighest = highest();
         final var lower = table.range(ByteBufferUtils.emptyBuffer(), levelLowest);
-        while (lower.hasNext()) {
-            final var generation = generationProvider.nextGeneration();
-            final var limited = Iterators.limit(lower, entriesPerTable);
-            final var ssTable = flush(generation, limited);
-            result.put(generation, ssTable);
-            log.info("Entries flushed with keys before L{} into T{}: {}", index, generation, ssTable);
-        }
+        flushEntries(lower, entriesPerTable, result);
 
         // merge with tables of the current level
         final var range = table.range(levelLowest, levelHighest);
         final var merged = IteratorUtils.collapseIterators(Set.of(iterator(), range));
-        while (merged.hasNext()) {
-            final var generation = generationProvider.nextGeneration();
-            final var limited = Iterators.limit(merged, entriesPerTable);
-            final var ssTable = flush(generation, limited);
-            result.put(generation, ssTable);
-            log.info("Entries merged with L{} into T{}: {}", index, generation, ssTable);
-        }
+        flushEntries(merged, entriesPerTable, result);
 
         // flush entries with keys higher than keys of the current level tables
         final var currentLevelHighest = highest();
         final var higher = table.iterator(currentLevelHighest);
-        while (higher.hasNext()) {
-            final var generation = generationProvider.nextGeneration();
-            final var limited = Iterators.limit(higher, entriesPerTable);
-            final var ssTable = flush(generation, limited);
-            result.put(generation, ssTable);
-            log.info("Entries flushed with keys after L{} into T{}: {}", index, generation, ssTable);
-        }
+        flushEntries(higher, entriesPerTable, result);
 
         return result;
     }
@@ -204,7 +187,7 @@ final class Level implements SSTablePool {
             if (index == 0) {
                 ssTables = new TreeSet<>(tables);
             } else {
-                ssTables = tables.tailSet(RangedSSTable.of(-1, SingleValueTable.wrap(from)));
+                ssTables = tables.tailSet(RangedSSTable.from(-1, SingleValueTable.wrap(from)));
             }
         } finally {
             lock.readLock().unlock();
@@ -231,7 +214,7 @@ final class Level implements SSTablePool {
             if (index == 0) {
                 ssTables = new TreeSet<>(tables);
             } else {
-                ssTables = tables.subSet(RangedSSTable.value(from), RangedSSTable.value(to));
+                ssTables = tables.subSet(RangedSSTable.fromValue(from), RangedSSTable.fromValue(to));
             }
         } finally {
             lock.readLock().unlock();
@@ -305,8 +288,21 @@ final class Level implements SSTablePool {
         }
     }
 
+    private void flushEntries(
+            @NotNull final Iterator<TableEntry> iterator,
+            final int entriesPerTable,
+            @NotNull final HashMap<Integer, SSTable> result) throws IOException {
+        while (iterator.hasNext()) {
+            final var generation = generationProvider.nextGeneration();
+            final var limited = Iterators.limit(iterator, entriesPerTable);
+            final var ssTable = flushAndOpen(generation, limited);
+            result.put(generation, ssTable);
+            log.info("Entries merged with L{} into T{}: {}", index, generation, ssTable);
+        }
+    }
+    
     @NotNull
-    private SSTable flush(
+    private SSTable flushAndOpen(
             final int generation,
             @NotNull final Iterator<TableEntry> iterator) throws IOException {
         final var tempPath = fileManager.tempPathTo(generation, index);

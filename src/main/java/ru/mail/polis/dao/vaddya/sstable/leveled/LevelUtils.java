@@ -7,7 +7,6 @@ import ru.mail.polis.dao.vaddya.sstable.SSTable;
 
 import java.nio.ByteBuffer;
 import java.util.Iterator;
-import java.util.NavigableSet;
 
 final class LevelUtils {
     private LevelUtils() {
@@ -22,15 +21,15 @@ final class LevelUtils {
         final SSTable ssTable;
         final ByteBuffer highest;
 
-        static RangedSSTable generation(final int generation) {
+        static RangedSSTable fromGeneration(final int generation) {
             return new RangedSSTable(generation, SingleValueTable.LOWEST);
         }
 
-        static RangedSSTable value(@NotNull final ByteBuffer value) {
+        static RangedSSTable fromValue(@NotNull final ByteBuffer value) {
             return new RangedSSTable(-1, SingleValueTable.wrap(value));
         }
 
-        static RangedSSTable of(
+        static RangedSSTable from(
                 final int generation,
                 @NotNull final SSTable ssTable) {
             return new RangedSSTable(generation, ssTable);
@@ -53,7 +52,7 @@ final class LevelUtils {
                 return 0;
             }
             final var highestCompare = highest.compareTo(o.highest);
-            return highestCompare != 0 ? highestCompare : Integer.compare(generation, o.generation);
+            return highestCompare == 0 ? Integer.compare(generation, o.generation) : highestCompare;
         }
 
         @Override
@@ -63,7 +62,7 @@ final class LevelUtils {
     }
 
     /**
-     * Special class that can be used as a bound in the range-queries of {@link NavigableSet<SSTable>}.
+     * Special class that can be used as a bound in the range-queries of {@code NavigableSet<SSTable>}.
      */
     static final class SingleValueTable implements SSTable {
         private static final SingleValueTable LOWEST = new SingleValueTable(ByteBufferUtils.emptyBuffer());
@@ -92,18 +91,22 @@ final class LevelUtils {
 
         @Override
         public long sizeInBytes() {
-            throw new IllegalStateException("Should never happen");
+            throw shouldNewerHappen();
         }
 
         @Override
         public int count() {
-            throw new IllegalStateException("Should never happen");
+            throw shouldNewerHappen();
         }
 
         @NotNull
         @Override
         public Iterator<TableEntry> iterator(@NotNull final ByteBuffer from) {
-            throw new IllegalStateException("Should never happen");
+            throw shouldNewerHappen();
+        }
+        
+        private IllegalStateException shouldNewerHappen() {
+            return new IllegalStateException("Should never happen");
         }
     }
 }

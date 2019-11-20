@@ -11,11 +11,22 @@ public final class ByteBufferUtils {
     private ByteBufferUtils() {
     }
 
+    /**
+     * Returns empty buffer.
+     *
+     * @return empty buffer
+     */
     @NotNull
     public static ByteBuffer emptyBuffer() {
         return EMPTY_BUFFER;
     }
 
+    /**
+     * Creates a buffer from the specified int value.
+     *
+     * @param value a int value to put into the buffer
+     * @return a buffer with int value
+     */
     @NotNull
     public static ByteBuffer fromInt(final int value) {
         final var buffer = ByteBuffer.allocate(Integer.BYTES);
@@ -23,6 +34,12 @@ public final class ByteBufferUtils {
         return buffer.flip();
     }
 
+    /**
+     * Creates a buffer from the specified list of ints.
+     *
+     * @param list a list of int values
+     * @return a buffer with int list
+     */
     @NotNull
     public static ByteBuffer fromIntList(@NotNull final List<Integer> list) {
         final var buffer = ByteBuffer.allocate(Integer.BYTES * list.size());

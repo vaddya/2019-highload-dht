@@ -19,8 +19,6 @@ import static java.nio.ByteOrder.BIG_ENDIAN;
 import static java.nio.channels.FileChannel.MapMode.READ_ONLY;
 
 public interface SSTable extends Table {
-    int MAGIC = 0xCAFEFEED;
-
     /**
      * Get the lowest key in the table.
      */
@@ -65,7 +63,7 @@ public interface SSTable extends Table {
         final var sizeBuffer = ByteBufferUtils.fromInt(offsets.size());
         channel.write(sizeBuffer);
 
-        final var magicBuffer = ByteBufferUtils.fromInt(SSTable.MAGIC);
+        final var magicBuffer = ByteBufferUtils.fromInt(SSTableImpl.MAGIC);
         channel.write(magicBuffer);
 
         channel.force(true);
@@ -87,7 +85,7 @@ public interface SSTable extends Table {
         final var mapped = channel.map(READ_ONLY, 0, size).order(BIG_ENDIAN);
 
         final var magic = mapped.getInt(mapped.limit() - Integer.BYTES);
-        if (magic != SSTable.MAGIC) {
+        if (magic != SSTableImpl.MAGIC) {
             throw new IOException("Invalid SSTable format: magic const is missing");
         }
 

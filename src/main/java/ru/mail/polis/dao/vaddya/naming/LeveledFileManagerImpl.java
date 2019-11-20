@@ -55,8 +55,8 @@ public class LeveledFileManagerImpl implements LeveledFileManager {
 
     @Override
     public int generationFromPath(@NotNull final Path path) {
-        String name = path.getFileName().toString();
-        Matcher matcher = pattern.matcher(name);
+        final var name = path.getFileName().toString();
+        final var matcher = pattern.matcher(name);
         if (matcher.find()) {
             return Integer.parseInt(matcher.group(1));
         }
@@ -65,8 +65,8 @@ public class LeveledFileManagerImpl implements LeveledFileManager {
 
     @Override
     public int levelFromPath(@NotNull final Path path) {
-        String name = path.getFileName().toString();
-        Matcher matcher = pattern.matcher(name);
+        final var name = path.getFileName().toString();
+        final var matcher = pattern.matcher(name);
         if (matcher.find()) {
             return Integer.parseInt(matcher.group(2));
         }

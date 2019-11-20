@@ -25,9 +25,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static ru.mail.polis.dao.vaddya.IteratorUtils.toCollapsedMergedIterator;
 
-/**
- * SSTable pool without background compaction process.
- */
 @ThreadSafe
 public final class SSTablePoolImpl implements SSTablePool {
     private static final Logger log = LoggerFactory.getLogger(SSTablePoolImpl.class);
@@ -38,6 +35,13 @@ public final class SSTablePoolImpl implements SSTablePool {
     private final Map<Integer, SSTable> tables;
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
+    /**
+     * Creates a SSTablePool instance without background compaction process.
+     *
+     * @param fileManager        a file manager to generate file names and to list the current directory
+     * @param flusher            a flusher to flush entries during compaction
+     * @param generationProvider a generation provider to atomically increment and get generation
+     */
     public SSTablePoolImpl(
             @NotNull final FileManager fileManager,
             @NotNull final Flusher flusher,
@@ -143,9 +147,9 @@ public final class SSTablePoolImpl implements SSTablePool {
         } finally {
             lock.readLock().unlock();
         }
-        final var tables = tablesToCompact.values();
+        final var ssTables = tablesToCompact.values();
         final var generations = tablesToCompact.keySet();
-        final var alive = IteratorUtils.aliveEntries(tables);
+        final var alive = IteratorUtils.aliveEntries(ssTables);
 
         final SSTable ssTable;
         final int generation;

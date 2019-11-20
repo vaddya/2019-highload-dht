@@ -2,7 +2,6 @@ package ru.mail.polis.dao.vaddya.memtable;
 
 import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.dao.vaddya.Table;
-import ru.mail.polis.dao.vaddya.sstable.SSTable;
 
 import java.nio.ByteBuffer;
 

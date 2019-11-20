@@ -19,7 +19,12 @@ import java.nio.file.StandardOpenOption;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -40,6 +45,15 @@ public class LeveledSSTablePoolImpl implements SSTablePool {
     private final LeveledCompactor compactor = new LeveledCompactor();
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
 
+    /**
+     * Creates a SSTablePool instance with leveled compaction the in background.
+     * https://github.com/facebook/rocksdb/wiki/Leveled-Compaction
+     *
+     * @param compactionThresholdInBytes threshold in bytes when zero level need to be compacted
+     * @param targetTableSizeInBytes     target base size of a table on a disk
+     * @param fileManager                a file manager to access files
+     * @param generationProvider         a generation provider to atomically increment and get generation
+     */
     public LeveledSSTablePoolImpl(
             final long compactionThresholdInBytes,
             final long targetTableSizeInBytes,
@@ -139,9 +153,7 @@ public class LeveledSSTablePoolImpl implements SSTablePool {
 
     @Override
     public String toString() {
-        return "LeveledSSTablePoolImpl{" +
-                "levels=" + levels +
-                '}';
+        return "LeveledSSTablePoolImpl{" + "levels=" + levels + '}';
     }
 
     @NotNull
@@ -197,6 +209,7 @@ public class LeveledSSTablePoolImpl implements SSTablePool {
                     compactionLatch.await(TIMEOUT, TimeUnit.SECONDS);
                 } catch (InterruptedException e) {
                     log.error("Error while awaiting compaction completion: {}", e.getMessage());
+                    Thread.currentThread().interrupt();
                 }
                 return;
             }
@@ -225,6 +238,7 @@ public class LeveledSSTablePoolImpl implements SSTablePool {
                     }
                 } catch (InterruptedException e) {
                     log.error("Unable to stop compactor {}", e.getMessage());
+                    Thread.currentThread().interrupt();
                 }
             }
         }

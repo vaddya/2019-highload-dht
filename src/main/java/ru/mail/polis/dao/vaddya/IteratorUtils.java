@@ -29,7 +29,8 @@ public final class IteratorUtils {
      */
     @NotNull
     public static Iterator<TableEntry> collapseIterators(@NotNull final Collection<Iterator<TableEntry>> iterators) {
-        @SuppressWarnings("UnstableApiUsage") final var merged = Iterators.mergeSorted(iterators, TableEntry.COMPARATOR);
+        @SuppressWarnings("UnstableApiUsage") 
+        final var merged = Iterators.mergeSorted(iterators, TableEntry.COMPARATOR);
         return Iters.collapseEquals(merged, TableEntry::getKey);
     }
 
@@ -40,7 +41,7 @@ public final class IteratorUtils {
      * @return a collector that can be used to collect {@code Stream<Iterator<TableEntry>>}.
      */
     @NotNull
-    public static Collector<Iterator<TableEntry>, ?, Iterator<TableEntry>> toCollapsedMergedIterator() {
+    public static Collector<Iterator<TableEntry>, ArrayList<Iterator<TableEntry>>, Iterator<TableEntry>> toCollapsedMergedIterator() {
         return Collector.of(
                 ArrayList::new,
                 List::add,

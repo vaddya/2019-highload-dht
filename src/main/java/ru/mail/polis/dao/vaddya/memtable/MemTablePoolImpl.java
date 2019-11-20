@@ -33,6 +33,14 @@ public final class MemTablePoolImpl implements MemTablePool {
     private final GenerationProvider generationProvider;
     private final Flusher flusher;
 
+    /**
+     * Create a MemTablePool instance that encapsulates the process of creating and
+     * atomically switching MemTables.
+     *
+     * @param flushThresholdInBytes threshold in bytes when MemTable is need to be switched
+     * @param generationProvider    a generation provider to atomically increment and get table generation
+     * @param flusher               a flusher to schedule flushing of a MemTable to the disk
+     */
     public MemTablePoolImpl(
             final long flushThresholdInBytes,
             @NotNull final GenerationProvider generationProvider,

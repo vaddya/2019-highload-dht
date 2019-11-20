@@ -28,6 +28,12 @@ public final class TableFlusher implements Flusher {
     private final Collection<FlushListener> listeners = new CopyOnWriteArrayList<>();
     private final Phaser phaser = new Phaser(1); // one party for closing call
 
+    /**
+     * Creates a flusher instance that schedules and executes
+     * flushes of MemTables to the disk.
+     *
+     * @param fileManager a file manager to create file names
+     */
     public TableFlusher(@NotNull final FileManager fileManager) {
         this.fileManager = fileManager;
         final var threadFactory = new ThreadFactoryBuilder().setNameFormat("flusher-%d").build();
@@ -68,7 +74,7 @@ public final class TableFlusher implements Flusher {
     }
 
     @Override
-    public void addListener(@NotNull FlushListener flushListener) {
+    public void addListener(@NotNull final FlushListener flushListener) {
         listeners.add(flushListener);
     }
 

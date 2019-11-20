@@ -4,7 +4,6 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import ru.mail.polis.dao.Iters;
 
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 
