@@ -56,13 +56,7 @@ class AllDeadTest extends TestBase {
             }
 
             // Check contents
-            final Iterator<Record> empty = dao.iterator(ByteBuffer.allocate(0));
-            
-            if (empty.hasNext()) {
-                final var next = empty.next();
-                System.err.println(next);
-            }
-            
+            final Iterator<Record> empty = dao.iterator(ByteBuffer.allocate(0));            
             assertFalse(empty.hasNext());
         }
     }
