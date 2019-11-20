@@ -41,7 +41,8 @@ public final class IteratorUtils {
      * @return a collector that can be used to collect {@code Stream<Iterator<TableEntry>>}.
      */
     @NotNull
-    public static Collector<Iterator<TableEntry>, ArrayList<Iterator<TableEntry>>, Iterator<TableEntry>> toCollapsedMergedIterator() {
+    public static Collector<Iterator<TableEntry>, ArrayList<Iterator<TableEntry>>, Iterator<TableEntry>> 
+    toCollapsedMergedIterator() {
         return Collector.of(
                 ArrayList::new,
                 List::add,

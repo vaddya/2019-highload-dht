@@ -291,7 +291,7 @@ final class Level implements SSTablePool {
     private void flushEntries(
             @NotNull final Iterator<TableEntry> iterator,
             final int entriesPerTable,
-            @NotNull final HashMap<Integer, SSTable> result) throws IOException {
+            @NotNull final Map<Integer, SSTable> result) throws IOException {
         while (iterator.hasNext()) {
             final var generation = generationProvider.nextGeneration();
             final var limited = Iterators.limit(iterator, entriesPerTable);

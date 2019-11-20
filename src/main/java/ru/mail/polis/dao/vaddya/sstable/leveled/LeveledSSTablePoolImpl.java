@@ -255,7 +255,8 @@ public class LeveledSSTablePoolImpl implements SSTablePool {
 
             final var lowerTable = level(index).maxSizedTable();
             final var higherLevelSnapshot = level(index + 1).snapshot();
-            log.info("Merging T{} of {} with {} tables of L{}", lowerTable, index, higherLevelSnapshot.tables().size(), index + 1);
+            log.info("Merging T{} of {} with {} tables of L{}", 
+                    lowerTable, index, higherLevelSnapshot.tables().size(), index + 1);
 
             final var createdTables = higherLevelSnapshot.mergeWith(lowerTable.getValue());
 
@@ -273,7 +274,8 @@ public class LeveledSSTablePoolImpl implements SSTablePool {
         private boolean compactZeroLevel() throws IOException {
             final var zeroLevelSnapshot = level(0).snapshot();
             final var firstLevelSnapshot = level(1).snapshot();
-            log.info("Merging {} tables of L0 with {} tables of L1", zeroLevelSnapshot.tables().size(), firstLevelSnapshot.tables().size());
+            log.info("Merging {} tables of L0 with {} tables of L1", 
+                    zeroLevelSnapshot.tables().size(), firstLevelSnapshot.tables().size());
             final var createdTables = firstLevelSnapshot.mergeWith(zeroLevelSnapshot);
 
             lock.writeLock().lock();
