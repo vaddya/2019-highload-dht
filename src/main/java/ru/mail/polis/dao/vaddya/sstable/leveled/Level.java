@@ -187,7 +187,7 @@ final class Level implements SSTablePool {
             if (index == 0) {
                 ssTables = new TreeSet<>(tables);
             } else {
-                ssTables = tables.tailSet(RangedSSTable.from(-1, SingleValueTable.wrap(from)));
+                ssTables = tables.tailSet(RangedSSTable.fromValue(from));
             }
         } finally {
             lock.readLock().unlock();
