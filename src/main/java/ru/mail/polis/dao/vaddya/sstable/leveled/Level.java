@@ -13,7 +13,6 @@ import ru.mail.polis.dao.vaddya.naming.LeveledFileManagerImpl;
 import ru.mail.polis.dao.vaddya.sstable.SSTable;
 import ru.mail.polis.dao.vaddya.sstable.SSTablePool;
 import ru.mail.polis.dao.vaddya.sstable.leveled.LevelUtils.RangedSSTable;
-import ru.mail.polis.dao.vaddya.sstable.leveled.LevelUtils.SingleValueTable;
 
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.IOException;
